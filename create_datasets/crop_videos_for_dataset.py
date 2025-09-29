@@ -1,13 +1,14 @@
 # This script extracts blink-related AU clips from the original data.
 import json
 import os
-import math
 import subprocess
 from pathlib import Path
 import sys
 import random
-# add parent folder to Python path so configs.py is found
-sys.path.append(str(Path(__file__).resolve().parent.parent))
+
+project_root = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(project_root))
+
 from Read_my_eyes.configs import CREATE_DATASETS_FOLDER_DIR
 
 FFMPEG = r"C:/ffmpeg/ffmpeg-8.0-essentials_build/bin/ffmpeg.exe"
@@ -34,17 +35,19 @@ AU_avoid = [
     "AU145", "AU145L", "AU145R",   # full blink
     ]
 
+AU_background = ["AD51", "AD38", "EAD104", "VC70", "AD53", "AD1", "AD58"]
 """
 # The AU, EAD, etc of interest
 AU = ["AD51", "AD38", "EAD104", "VC70", "AD53", "AD1", "AD58"]
 
+# None if no AUs should be avoided
 AU_avoid = [
     "AU143", "AU143L", "AU143R",   # blink
     "AU47",  "AU47L",  "AU47R",    # half blink
     "AU145", "AU145L", "AU145R",   # full blink
     ]
 
-name_output = "background"  #"background" or  "action"  
+name_output = "background"  #"background" or  "action"
 
 
 
@@ -177,7 +180,7 @@ for au in AU:
                 output_dir = base_path / "datasets" / "AUs" / "background"    # au when action else "background"
                 output_dir.mkdir(parents=True, exist_ok=True)
 
-                out_path = output_dir / f"{Path(video).stem.replace('_Video', '')}_{name_output}_{code}_{i}.mp4"
+                out_path = output_dir / f"{code}_{Path(video).stem.replace('_Video', '')}_{name_output}_{i}.mp4"
 
                 # Note: stream copy is fast but not frame-accurate.
                 # For more accurate cuts, replace "-c", "copy" with codec re-encode options.
