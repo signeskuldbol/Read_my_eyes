@@ -1,0 +1,192 @@
+import cv2
+import numpy as np
+from pathlib import Path
+from ultralytics import YOLO
+from tqdm import tqdm
+
+# -------------------------
+# Settings (edit these)
+# -------------------------
+MODEL_PATH = "horse_blink/face_detection/yolov8l_horse_face_detection.pt"          # path to YOLO model
+VIDEO_PATH = "horse_blink/face_detection/S1_Video.mp4"              # path to input video
+OUTPUT_PATH = "horse_blink/face_detection/output_cropped.mp4"    # path to save cropped video
+DEVICE = "cuda"                        # "cuda", "cuda:0", or "cpu"
+CONF_THRES = 0.25                     # YOLO confidence threshold
+PAD = 0                              # extra pixels around crop
+KEEP_LAST_CENTER = True             # if a frame has no detection, use last known center
+FALLBACK_TO_IMAGE_CENTER = True     # if no last center exists, use image center
+CLASS_NAME = None                   # e.g. "horse" or None to use all classes
+# Optional: force a square window using the max(width, height)
+FORCE_SQUARE = False
+# -------------------------
+
+
+
+def choose_largest(boxes):
+    """Return the xyxy box with the largest area."""
+    if boxes is None or len(boxes) == 0:
+        return None
+    wh = boxes[:, 2:4] - boxes[:, 0:2]
+    areas = wh[:, 0] * wh[:, 1]
+    return boxes[np.argmax(areas)]
+
+
+def center_from_box(box):
+    x1, y1, x2, y2 = box
+    cx = 0.5 * (x1 + x2)
+    cy = 0.5 * (y1 + y2)
+    w = (x2 - x1)
+    h = (y2 - y1)
+    return cx, cy, w, h
+
+
+def clamp_window_top_left(x, y, win_w, win_h, img_w, img_h):
+    """Clamp the top-left corner so the full window lies inside the image."""
+    x = int(round(x))
+    y = int(round(y))
+    x = max(0, min(img_w - win_w, x))
+    y = max(0, min(img_h - win_h, y))
+    return x, y
+
+
+def pass1_collect(model, cap, W, H, class_id_filter):
+    """
+    Run YOLO once over the video. For each frame, store:
+      - center (cx, cy) of the largest detection (if any)
+      - its width, height
+    Also track global max width/height across frames (for later fixed window).
+    """
+    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or None
+    per_frame = []  # list of dicts: {"has_det": bool, "cx": float, "cy": float}
+    max_w = 0.0
+    max_h = 0.0
+
+    pbar = tqdm(total=frame_count, desc="Pass 1: scanning", unit="frame")
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        r = model.predict(frame, conf=CONF_THRES, device=DEVICE, verbose=False)[0]
+        chosen = None
+        if hasattr(r, "boxes") and r.boxes is not None and len(r.boxes) > 0:
+            boxes = r.boxes.xyxy.cpu().numpy().astype(np.float32)
+            if class_id_filter is not None:
+                cls_ids = r.boxes.cls.cpu().numpy().astype(int)
+                boxes = boxes[cls_ids == class_id_filter]
+            if boxes is not None and len(boxes) > 0:
+                chosen = choose_largest(boxes)
+
+        if chosen is not None:
+            cx, cy, w, h = center_from_box(chosen)
+            max_w = max(max_w, w)
+            max_h = max(max_h, h)
+            per_frame.append({"has_det": True, "cx": cx, "cy": cy})
+        else:
+            per_frame.append({"has_det": False, "cx": None, "cy": None})
+
+        pbar.update(1)
+
+    pbar.close()
+    return per_frame, max_w, max_h
+
+
+def pass2_write(cap, W, H, FPS, per_frame, win_w, win_h, out_path):
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    writer = cv2.VideoWriter(str(out_path), fourcc, FPS, (win_w, win_h))
+
+    # Center fallback strategy
+    last_cx, last_cy = None, None
+    if FALLBACK_TO_IMAGE_CENTER:
+        img_center_x = W / 2.0
+        img_center_y = H / 2.0
+
+    frame_idx = 0
+    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or None
+    pbar = tqdm(total=frame_count, desc="Pass 2: writing", unit="frame")
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        rec = per_frame[frame_idx]
+        frame_idx += 1
+
+        if rec["has_det"]:
+            cx, cy = rec["cx"], rec["cy"]
+            last_cx, last_cy = cx, cy
+        else:
+            # No detection: reuse last center, or fallback to image center
+            if KEEP_LAST_CENTER and last_cx is not None and last_cy is not None:
+                cx, cy = last_cx, last_cy
+            elif FALLBACK_TO_IMAGE_CENTER:
+                cx, cy = img_center_x, img_center_y
+                last_cx, last_cy = cx, cy
+            else:
+                # If we strictly don't want fallbacks, just center on the image
+                cx, cy = W / 2.0, H / 2.0
+
+        # Compute top-left of the fixed window centered at (cx, cy)
+        x = int(round(cx - win_w / 2.0))
+        y = int(round(cy - win_h / 2.0))
+        x, y = clamp_window_top_left(x, y, win_w, win_h, W, H)
+
+        crop = frame[y:y + win_h, x:x + win_w]
+        writer.write(crop)
+        pbar.update(1)
+
+    writer.release()
+    pbar.close()
+
+
+def main():
+    # Load model
+    model = YOLO(MODEL_PATH)
+
+    # Resolve class id if CLASS_NAME is set
+    class_id_filter = None
+    if CLASS_NAME is not None:
+        names = model.model.names if hasattr(model, "model") else model.names
+        if isinstance(names, dict):
+            inv = {v: k for k, v in names.items()}
+        else:
+            inv = {n: i for i, n in enumerate(names)}
+        if CLASS_NAME not in inv:
+            raise SystemExit(f"Class '{CLASS_NAME}' not found. Available: {list(inv.keys())}")
+        class_id_filter = inv[CLASS_NAME]
+
+    # Open video for pass 1
+    cap1 = cv2.VideoCapture(str(VIDEO_PATH))
+    if not cap1.isOpened():
+        raise RuntimeError(f"Could not open video {VIDEO_PATH}")
+    W = int(cap1.get(cv2.CAP_PROP_FRAME_WIDTH))
+    H = int(cap1.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    FPS = cap1.get(cv2.CAP_PROP_FPS) or 25.0
+
+    # Pass 1: scan to collect centers and max box
+    per_frame, max_w, max_h = pass1_collect(model, cap1, W, H, class_id_filter)
+    cap1.release()
+
+    # Build fixed window (apply padding and optional square)
+    win_w = int(round(min(W, max_w + 2 * PAD)))
+    win_h = int(round(min(H, max_h + 2 * PAD)))
+    if FORCE_SQUARE:
+        side = int(round(min(min(W, H), max(win_w, win_h))))
+        win_w = side
+        win_h = side
+
+    print(f"Fixed window size: {win_w} x {win_h}")
+
+    # Pass 2: crop with fixed window centered on each frame's detection center
+    cap2 = cv2.VideoCapture(str(VIDEO_PATH))
+    if not cap2.isOpened():
+        raise RuntimeError("Could not reopen video for pass 2")
+    pass2_write(cap2, W, H, FPS, per_frame, win_w, win_h, OUTPUT_PATH)
+    cap2.release()
+
+    print(f"Saved cropped video to: {OUTPUT_PATH}")
+
+
+if __name__ == "__main__":
+    main()
