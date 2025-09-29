@@ -1,0 +1,7 @@
+xlrd==1.1.0
+pandas==2.0.1
+openpyxl==3.1.5
+ffmpeg-python
+ultralytics==8.2.77
+clearml==1.16.3
+opencv-python==4.10.0.84
