@@ -5,6 +5,7 @@ import math
 import subprocess
 from pathlib import Path
 import sys
+import random
 # add parent folder to Python path so configs.py is found
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from Read_my_eyes.configs import CREATE_DATASETS_FOLDER_DIR
@@ -52,7 +53,7 @@ base_path = CREATE_DATASETS_FOLDER_DIR
 videos_path = base_path / "original_videos_annotations" / "videos"
 annotations_file_path = base_path / "original_videos_annotations" / "JSONAnnotations" / "annotations.json"
 FPS = 25  
-Frame_time = 2 * ( 1.0 / FPS ) # used for padding 
+Frame_time = ( 1.0 / FPS ) # used for padding 
 
 def parse_time_to_seconds(t: str) -> float:
     # t like "HH:MM:SS.mmm"
@@ -144,9 +145,14 @@ for au in AU:
                 S = parse_time_to_seconds(start_str)
                 D = float(dur_val)
 
-                # one-frame padding
-                new_start = max(0.0, S - Frame_time)
-                new_duration = D + 2.0 * Frame_time # 2*Frame_time to account for start padding
+                random_padding = Frame_time * random.randint(2, 10)
+                
+                # Add random padding to start and end, 
+                new_start = max(0.0, S - random_padding)
+                if ((S - random_padding) < 0.0):   # if start padding would go below 0
+                    new_duration = D + random_padding + S # only add padding at the end and the part of start padding that is above 0
+                else:   
+                    new_duration = D + 2.0 * random_padding # 2*random_padding to account for start padding
 
                 action_start = fmt(new_start)
                 duration_str = f"{new_duration:.3f}"
