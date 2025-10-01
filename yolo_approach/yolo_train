@@ -1,0 +1,96 @@
+# train_blink_cls.py
+# Usage:
+#   python train_blink_cls.py --data_root datasets/blink_cls --model yolov8x-cls.pt --imgsz 448 --epochs 150
+
+import argparse
+import os
+from pathlib import Path
+from collections import Counter
+from ultralytics import YOLO
+
+def count_images_in_split(split_dir: Path):
+    """Return dict: {class_name: count} for a split directory containing class subfolders."""
+    counts = {}
+    if not split_dir.exists():
+        return counts
+    for cls_dir in sorted([d for d in split_dir.iterdir() if d.is_dir()]):
+        n = sum(1 for _ in cls_dir.rglob("*") if _.suffix.lower() in {".jpg", ".jpeg", ".png", ".bmp", ".webp"})
+        counts[cls_dir.name] = n
+    return counts
+
+def print_counts(title, counts):
+    print(f"\n[{title}]")
+    if not counts:
+        print("  (missing)")
+        return
+    total = sum(counts.values())
+    for k, v in counts.items():
+        pct = (v / total * 100) if total > 0 else 0
+        print(f"  {k:>10}: {v:6d}  ({pct:5.1f}%)")
+    print(f"  {'TOTAL':>10}: {total:6d}")
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--data_root", type=str, required=True,
+                    help="Path containing train/, val/, test/ each with blink/ and no_blink/ subfolders")
+    ap.add_argument("--model", type=str, default="yolov8x-cls.pt",
+                    help="Classification checkpoint (e.g., yolov8n/l/x-cls.pt)")
+    ap.add_argument("--imgsz", type=int, default=384, help="Input resolution")
+    ap.add_argument("--epochs", type=int, default=120, help="Training epochs")
+    ap.add_argument("--batch", type=int, default=64, help="Batch size")
+    ap.add_argument("--seed", type=int, default=42, help="Random seed")
+    args = ap.parse_args()
+
+    data_root = Path(args.data_root).resolve()
+    train_dir = data_root / "train"
+    val_dir   = data_root / "val"
+    test_dir  = data_root / "test"
+
+    # --- Sanity checks ---
+    for p in [train_dir / "blink", train_dir / "no_blink",
+              val_dir / "blink",   val_dir / "no_blink",
+              test_dir / "blink",  test_dir / "no_blink"]:
+        if not p.exists():
+            raise FileNotFoundError(f"Missing expected directory: {p}")
+
+    # --- Show class balance per split ---
+    print_counts("TRAIN", count_images_in_split(train_dir))
+    print_counts("VAL",   count_images_in_split(val_dir))
+    print_counts("TEST",  count_images_in_split(test_dir))
+
+    # --- Train ---
+    model = YOLO(args.model)  # e.g., yolov8x-cls.pt (ImageNet-pretrained)
+    print("\nStarting training...")
+    model.train(
+        data=str(data_root),   # root with train/ val/ (and optionally test/)
+        imgsz=args.imgsz,
+        epochs=args.epochs,
+        batch=args.batch,
+        optimizer="adamw",
+        lr0=3e-4, lrf=5e-3,
+        weight_decay=0.05,
+        cos_lr=True,
+        dropout=0.1,
+        seed=args.seed,
+        verbose=True
+    )
+
+    # Path to best weights from training run:
+    best_w = Path(model.trainer.best) if hasattr(model, "trainer") and hasattr(model.trainer, "best") else None
+    if best_w is None or not best_w.exists():
+        # Fallback to default path if trainer handle changes in future versions
+        best_w = Path("runs/classify/train/weights/best.pt")
+    print(f"\nBest weights: {best_w}")
+
+    # --- Validate on VAL split ---
+    print("\nValidating on VAL split...")
+    model = YOLO(str(best_w))
+    model.val(data=str(data_root), imgsz=args.imgsz)  # uses data_root/val
+
+    # --- Evaluate on TEST split ---
+    print("\nEvaluating on TEST split...")
+    # For test, point 'data' at the test folder directly
+    model.val(data=str(test_dir), imgsz=args.imgsz)
+
+if __name__ == "__main__":
+    main()
