@@ -3,31 +3,53 @@ import numpy as np
 from pathlib import Path
 from ultralytics import YOLO
 from tqdm import tqdm
+import torch
 
-# -------------------------
-# Settings (edit these)
-# -------------------------
-MODEL_PATH = "horse_blink/face_detection/yolov8l_horse_face_detection.pt"          # path to YOLO model
-VIDEO_PATH = "horse_blink/face_detection/S1_Video.mp4"              # path to input video
-OUTPUT_PATH = "horse_blink/face_detection/output_cropped.mp4"    # path to save cropped video
-DEVICE = "cuda"                        # "cuda", "cuda:0", or "cpu"
-CONF_THRES = 0.25                     # YOLO confidence threshold
-PAD = 0                              # extra pixels around crop
-KEEP_LAST_CENTER = True             # if a frame has no detection, use last known center
-FALLBACK_TO_IMAGE_CENTER = True     # if no last center exists, use image center
-CLASS_NAME = None                   # e.g. "horse" or None to use all classes
-# Optional: force a square window using the max(width, height)
-FORCE_SQUARE = False
-# -------------------------
+# =========================
+# Settings (same behavior)
+# =========================
+Base_path = Path(__file__).parent.parent
+print(f"Base path: {Base_path}")
 
 
-# Load model
-model = YOLO(MODEL_PATH)
+# Model
+MODEL_PATH = Base_path / "face_detection" / "yolov8l_horse_face_detection.pt"
 
-# Resolve class id if CLASS_NAME is set
+# Dataset I/O (preserve structure)
+INPUT_ROOT  = Base_path / "create_datasets" / "datasets" / "dataset_half_full_background"
+OUTPUT_ROOT = Base_path / "create_datasets" / "datasets" / "dataset_half_full_background_cropped"
+VIDEO_EXTS  = {".mp4", ".mov", ".avi", ".mkv", ".MP4", ".MOV", ".AVI", ".MKV"}
+SKIP_EXISTING = True  # skip if output file already exists
+
+# Device
+DEVICE = 0 if torch.cuda.is_available() else 'cpu'
+
+# Detection
+CONF_THRES = 0.50
+CLASS_NAME = None  # None = any class
+FORCE_SQUARE = True
+
+# ---- constant-size behavior (unchanged) ----
+LOCK_SIZE_TO_FIRST_DET = True      # lock size once we get the first detection
+SCALE_LOCKED_SIZE = 1              # scale locked size by this factor (1.0 = no change)
+MIN_LOCKED_SIDE = 64               # don't lock to a size smaller than this (in pixels)
+OFFSET_UP_FRAC = 0.20              # shift crop center up by 20% of locked side
+FALLBACK_BOX_FRAC = 0.50           # before lock, use this fraction of min(W,H) for a square
+
+# ---- temporal smoothing for CENTER ONLY (unchanged) ----
+EMA_ALPHA = 0.1                    # lower alpha = stronger smoothing
+HOLD_LAST_FOR = 8                  # hold last center up to K frames on miss
+
+# Output clip size (use 224x224 for VideoMAE)
+OUTPUT_SIZE = (224, 224)
+
+# =========================
+# Load model & optional class filter
+# =========================
+model = YOLO(str(MODEL_PATH))
+names = model.model.names if hasattr(model, "model") else model.names
 class_id_filter = None
 if CLASS_NAME is not None:
-    names = model.model.names if hasattr(model, "model") else model.names
     if isinstance(names, dict):
         inv = {v: k for k, v in names.items()}
     else:
@@ -36,17 +58,157 @@ if CLASS_NAME is not None:
         raise SystemExit(f"Class '{CLASS_NAME}' not found. Available: {list(inv.keys())}")
     class_id_filter = inv[CLASS_NAME]
 
-# Open video
-cap = cv2.VideoCapture(str(VIDEO_PATH))
-if not cap.isOpened():
-    raise RuntimeError(f"Could not open video {VIDEO_PATH}")
-W = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-H = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-FPS = cap.get(cv2.CAP_PROP_FPS) or 25.0
+# =========================
+# Helpers (same as your single-video script)
+# =========================
+def xyxy_to_cxcywh(x1, y1, x2, y2):
+    w = max(1.0, x2 - x1)
+    h = max(1.0, y2 - y1)
+    return x1 + w/2.0, y1 + h/2.0, w, h
 
-# Prepare output video writer
-fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-out = cv2.VideoWriter(str(OUTPUT_PATH), fourcc, FPS, (W, H))
-if not out.isOpened():
-    raise RuntimeError(f"Could not open output video for write: {OUTPUT_PATH}")
+def cxcywh_to_xyxy(cx, cy, w, h):
+    return cx - w/2.0, cy - h/2.0, cx + w/2.0, cy + h/2.0
 
+def clamp_center_to_bounds(cx, cy, w, h, W, H):
+    """Keep the box fully inside the image by shifting the center only (size stays constant)."""
+    half_w, half_h = w/2.0, h/2.0
+    cx = min(max(cx, half_w), W - 1 - half_w)
+    cy = min(max(cy, half_h), H - 1 - half_h)
+    return cx, cy
+
+# =========================
+# Process ONE video (keeps exact behavior from your code)
+# =========================
+def process_video(in_path: Path, out_path: Path):
+    cap = cv2.VideoCapture(str(in_path))
+    if not cap.isOpened():
+        raise RuntimeError(f"Could not open video {in_path}")
+
+    W = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    H = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    FPS = cap.get(cv2.CAP_PROP_FPS) or 25.0
+    N_FRAMES = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) if cap.get(cv2.CAP_PROP_FRAME_COUNT) > 0 else None
+
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    out = cv2.VideoWriter(str(out_path), fourcc, FPS, OUTPUT_SIZE)
+    if not out.isOpened():
+        cap.release()
+        raise RuntimeError(f"Could not open output video for write: {out_path}")
+
+    prev_cx = prev_cy = None
+    locked_side = None            # constant square size once set
+    miss_streak = 0
+
+    pbar = tqdm(total=N_FRAMES, desc=in_path.name, unit="f", leave=False) if N_FRAMES else None
+
+    try:
+        while True:
+            ok, frame = cap.read()
+            if not ok:
+                break
+
+            # 1) Detect
+            r = model.predict(source=frame, conf=CONF_THRES, device=DEVICE, verbose=False)[0]
+            det_cx = det_cy = det_w = det_h = None
+
+            if r.boxes is not None and len(r.boxes) > 0:
+                xyxy = r.boxes.xyxy.cpu().numpy()
+                conf = r.boxes.conf.cpu().numpy()
+                cls  = r.boxes.cls.cpu().numpy() if r.boxes.cls is not None else None
+
+                idxs = np.arange(len(xyxy))
+                if class_id_filter is not None and cls is not None:
+                    idxs = idxs[cls == class_id_filter]
+
+                if idxs.size > 0:
+                    best = idxs[np.argmax(conf[idxs])]
+                    x1, y1, x2, y2 = xyxy[best]
+                    det_cx, det_cy, det_w, det_h = xyxy_to_cxcywh(x1, y1, x2, y2)
+                    miss_streak = 0
+                else:
+                    miss_streak += 1
+            else:
+                miss_streak += 1
+            if miss_streak >= 1:
+                print(miss_streak)
+
+            # 2) Establish/keep constant square size from FIRST detection: side = min(w, h)
+            if locked_side is None:
+                if det_w is not None and det_h is not None and LOCK_SIZE_TO_FIRST_DET:
+                    base_side   = min(det_w, det_h) if FORCE_SQUARE else min(det_w, det_h)
+                    locked_side = base_side * SCALE_LOCKED_SIZE
+                else:
+                    base_side   = FALLBACK_BOX_FRAC * min(W, H)
+                    locked_side = base_side * SCALE_LOCKED_SIZE
+
+                # clamp to sane bounds
+                locked_side = float(np.clip(locked_side, MIN_LOCKED_SIDE, min(W, H)))
+
+            # 3) Target center = detection center shifted UP by OFFSET_UP_FRAC * locked_side
+            if det_cx is None or det_cy is None:
+                if prev_cx is not None and miss_streak <= HOLD_LAST_FOR:
+                    tgt_cx, tgt_cy = prev_cx, prev_cy
+                else:
+                    tgt_cx, tgt_cy = W/2.0, H/2.0 - OFFSET_UP_FRAC * locked_side
+            else:
+                tgt_cx = det_cx
+                tgt_cy = det_cy - OFFSET_UP_FRAC * locked_side
+
+            # 4) EMA-smooth the center (size stays constant)
+            if prev_cx is None:
+                cur_cx, cur_cy = tgt_cx, tgt_cy
+            else:
+                cur_cx = EMA_ALPHA * tgt_cx + (1 - EMA_ALPHA) * prev_cx
+                cur_cy = EMA_ALPHA * tgt_cy + (1 - EMA_ALPHA) * prev_cy
+
+            # 5) Keep constant-size box inside image by shifting center if needed
+            cur_cx, cur_cy = clamp_center_to_bounds(cur_cx, cur_cy, locked_side, locked_side, W, H)
+
+            # 6) Crop with constant size
+            x1, y1, x2, y2 = cxcywh_to_xyxy(cur_cx, cur_cy, locked_side, locked_side)
+            x1, y1, x2, y2 = int(round(x1)), int(round(y1)), int(round(x2)), int(round(y2))
+            crop = frame[y1:y2, x1:x2]
+
+            # 7) Resize & write (AREA when shrinking, CUBIC when enlarging)
+            interp = cv2.INTER_AREA if (crop.shape[1] > OUTPUT_SIZE[0] or crop.shape[0] > OUTPUT_SIZE[1]) else cv2.INTER_CUBIC
+            crop = cv2.resize(crop, OUTPUT_SIZE, interpolation=interp)
+            out.write(crop)
+
+            # 8) Update previous center
+            prev_cx, prev_cy = cur_cx, cur_cy
+            if pbar: pbar.update(1)
+
+    finally:
+        cap.release()
+        out.release()
+        if pbar: pbar.close()
+
+# =========================
+# Batch over dataset (preserve structure)
+# =========================
+def main():
+    INPUT_ROOT.mkdir(parents=True, exist_ok=True)
+    OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
+
+    files = [p for p in INPUT_ROOT.rglob("*") if p.suffix in VIDEO_EXTS]
+    if not files:
+        print(f"No videos found under: {INPUT_ROOT}")
+        return
+
+    for in_path in tqdm(files, desc="Total videos", unit="vid"):
+        rel = in_path.relative_to(INPUT_ROOT)
+        out_path = (OUTPUT_ROOT / rel).with_suffix(".mp4")  # force mp4 extension
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+
+        if SKIP_EXISTING and out_path.exists():
+            continue
+
+        try:
+            process_video(in_path, out_path)
+        except Exception as e:
+            print(f"[WARN] Failed on {in_path}: {e}")
+
+    print(f"All done. Output written under: {OUTPUT_ROOT}")
+
+if __name__ == "__main__":
+    main()
