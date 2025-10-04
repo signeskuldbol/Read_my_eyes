@@ -6,6 +6,10 @@ filename = "UCF101_subset.tar.gz"
 file_path = hf_hub_download(repo_id=hf_dataset_identifier, filename=filename, repo_type="dataset")
 
 import tarfile
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
+
+
 
 with tarfile.open(file_path) as t:
      t.extractall(".")
@@ -14,7 +18,10 @@ batch_size = 4  # or 2, 8, etc. depending on your GPU
 import torch
 
 import pathlib
-dataset_root_path = "UCF101_subset"
+from pathlib import Path
+import os
+folder_path = Path(__file__).parent
+dataset_root_path = folder_path / "UCF101_subset"
 dataset_root_path = pathlib.Path(dataset_root_path)
 video_count_train = len(list(dataset_root_path.glob("train/*/*.avi")))
 video_count_val = len(list(dataset_root_path.glob("val/*/*.avi")))
@@ -28,7 +35,13 @@ all_video_file_paths = (
  )
 all_video_file_paths[:5]
 
-class_labels = sorted({str(path).split("/")[2] for path in all_video_file_paths})
+# Each file path looks like: .../<split>/<class>/<video>.avi
+# The class is simply the parent directory name.
+class_labels = sorted({p.parent.name for p in all_video_file_paths})
+label2id = {label: i for i, label in enumerate(class_labels)}
+id2label = {i: label for label, i in label2id.items()}
+print(f"Unique classes: {list(label2id.keys())}.")
+
 label2id = {label: i for i, label in enumerate(class_labels)}
 id2label = {i: label for label, i in label2id.items()}
 
@@ -101,6 +114,7 @@ train_dataset = pytorchvideo.data.Ucf101(
     clip_sampler=pytorchvideo.data.make_clip_sampler("random", clip_duration),
     decode_audio=False,
     transform=train_transform,
+    decoder="decord",
 )
 
 val_transform = Compose(
@@ -124,6 +138,7 @@ val_dataset = pytorchvideo.data.Ucf101(
     clip_sampler=pytorchvideo.data.make_clip_sampler("uniform", clip_duration),
     decode_audio=False,
     transform=val_transform,
+    decoder="decord",
 )
 
 test_dataset = pytorchvideo.data.Ucf101(
@@ -131,6 +146,7 @@ test_dataset = pytorchvideo.data.Ucf101(
     clip_sampler=pytorchvideo.data.make_clip_sampler("uniform", clip_duration),
     decode_audio=False,
     transform=val_transform,
+    decoder="decord",
 )
 
 print(train_dataset.num_videos, val_dataset.num_videos, test_dataset.num_videos)
