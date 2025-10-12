@@ -8,16 +8,16 @@ import torch
 # =========================
 # Settings (same behavior)
 # =========================
-Base_path = Path(__file__).parent.parent
+Base_path = Path(__file__).parent
 print(f"Base path: {Base_path}")
 
 
 # Model
-MODEL_PATH = Base_path / "face_detection" / "yolov8l_horse_face_detection.pt"
+MODEL_PATH = Base_path / "yolov8l_horse_face_detection.pt"
 
 # Dataset I/O (preserve structure)
-INPUT_ROOT  = Base_path / "create_datasets" / "datasets" / "dataset_half_full_background"
-OUTPUT_ROOT = Base_path / "create_datasets" / "datasets" / "dataset_half_full_background_cropped"
+INPUT_ROOT  = Base_path / "datasets" / "unpadded_dataset"
+OUTPUT_ROOT = Base_path / "datasets" / "unpadded_dataset_cropped"
 VIDEO_EXTS  = {".mp4", ".mov", ".avi", ".mkv", ".MP4", ".MOV", ".AVI", ".MKV"}
 SKIP_EXISTING = True  # skip if output file already exists
 
@@ -77,7 +77,7 @@ def clamp_center_to_bounds(cx, cy, w, h, W, H):
     return cx, cy
 
 # =========================
-# Process ONE video (keeps exact behavior from your code)
+# Process ONE video 
 # =========================
 def process_video(in_path: Path, out_path: Path):
     cap = cv2.VideoCapture(str(in_path))

@@ -41,20 +41,21 @@ AU_background = ["AD51", "AD38", "EAD104", "VC70", "AD53", "AD1", "AD58"]
 AU = ["AD51", "AD38", "EAD104", "VC70", "AD53", "AD1", "AD58"]
 
 # None if no AUs should be avoided
-AU_avoid = [
+AU_avoid = AU_avoid = [
     "AU143", "AU143L", "AU143R",   # blink
     "AU47",  "AU47L",  "AU47R",    # half blink
     "AU145", "AU145L", "AU145R",   # full blink
     ]
 
-name_output = "background"  #"background" or  "action"
-
-
-
 # Base paths
 base_path = CREATE_DATASETS_FOLDER_DIR
 videos_path = base_path / "original_videos_annotations" / "videos"
 annotations_file_path = base_path / "original_videos_annotations" / "JSONAnnotations" / "annotations.json"
+
+name_output = "action"  #"background" or  "action"
+
+padding = False
+
 FPS = 25  
 Frame_time = ( 1.0 / FPS ) # used for padding 
 
@@ -148,7 +149,10 @@ for au in AU:
                 S = parse_time_to_seconds(start_str)
                 D = float(dur_val)
 
-                random_padding = Frame_time * random.randint(2, 10)
+                if padding:
+                    random_padding = Frame_time * random.randint(2, 10)
+                else:
+                    random_padding = 0.0
                 
                 # Add random padding to start and end, 
                 new_start = max(0.0, S - random_padding)
@@ -177,7 +181,7 @@ for au in AU:
                 input_file_path = videos_path / video
 
                 # Output folder per AU
-                output_dir = base_path / "datasets" / "AUs" / "background"    # au when action else "background"
+                output_dir = base_path / "datasets" / "New" / "background"    # au when action else "background"
                 output_dir.mkdir(parents=True, exist_ok=True)
 
                 out_path = output_dir / f"{code}_{Path(video).stem.replace('_Video', '')}_{name_output}_{i}.mp4"

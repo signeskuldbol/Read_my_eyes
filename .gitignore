@@ -3,6 +3,11 @@ __pycache__/
 *.py[codz]
 *$py.class
 
+demo_from_huggingface/
+videomae-ucf101-subset/
+datasets/
+videos/
+
 # C extensions
 *.so
 
