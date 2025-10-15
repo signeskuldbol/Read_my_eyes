@@ -6,6 +6,7 @@ __pycache__/
 demo_from_huggingface/
 videomae-ucf101-subset/
 datasets/
+dataset/
 videos/
 video_data/
 

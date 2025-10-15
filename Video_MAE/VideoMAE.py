@@ -51,7 +51,8 @@ gradient_acc_steps = 4
 metric_for_best_model = "accuracy" # "loss" also possible
 save_strategy = "no" # "steps", "no" also possible
 input_resolution = 224
-N_dont_freeze_last = 6 # how many of the last blocks to keep trainable #12 for base, 24 for large
+N_dont_freeze_last = 12 # how many of the last blocks to keep trainable #12 for base, 24 for large
+alpha = 1.5  # raise to emphasize minority classes more
 
 # --- Optimizer learning rates ---
 # Step size for weight updates. lower if loss oscillates or overfits. high if loss plateaus or slow
@@ -93,7 +94,7 @@ counts = Counter(train_label_ids)
 num_classes = len(class_labels)
 total = sum(counts.values())
 
-alpha = 1.2  # raise to emphasize minority classes more
+
 counts_arr = torch.tensor([max(counts.get(i, 0), 1) for i in range(num_classes)], dtype=torch.float32)
 
 raw = (total / counts_arr).pow(alpha)   # bigger for smaller classes
@@ -352,7 +353,7 @@ print("Test metrics:", test_metrics)
 # Save and see results (metrics)
 # -----------------------
 # Save the trained weights & config
-save_dir = output_dir / f"model_final_Layers_trained{N_dont_freeze_last}_weights_{class_weights.tolist()}_2_classes"
+save_dir = output_dir / f"model_final_Layers_trained{N_dont_freeze_last}alpha{alpha}_2_classes"
 save_dir.mkdir(parents=True, exist_ok=True)
 trainer.save_model(str(save_dir))             # saves model + tokenizer/processor state
 image_processor.save_pretrained(str(save_dir))
@@ -394,7 +395,7 @@ with np.errstate(invalid="ignore", divide="ignore"):
     cm_norm = np.nan_to_num(cm_norm)  # replace NaNs if a class has 0 support
 
 # Save path (same parent as your "final" folder)
-cm_path = (output_dir / f"CM__Layers_trained{N_dont_freeze_last}_weights_{class_weights.tolist()}_2_classes.png")
+cm_path = (output_dir / f"CM__Layers_trained{N_dont_freeze_last}_weights_{alpha}_2_classes.png")
 cm_path.parent.mkdir(parents=True, exist_ok=True)
 
 fig, ax = plt.subplots(figsize=(8, 6), dpi=150)
@@ -408,7 +409,7 @@ ax.set_xticklabels(class_labels, rotation=45, ha="right")
 ax.set_yticklabels(class_labels)
 ax.set_xlabel("Predicted label")
 ax.set_ylabel("True label")
-ax.set_title(f"Confusion Matrix (row-normalized). Layers_trained:{N_dont_freeze_last} weights:{class_weights.tolist()} ")
+ax.set_title(f"Confusion Matrix (row-normalized). Layers_trained:{N_dont_freeze_last} weights:{alpha} ")
 
 # Annotate cells with "percent (count)"
 for i in range(cm.shape[0]):
