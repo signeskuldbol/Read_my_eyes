@@ -7,6 +7,7 @@ demo_from_huggingface/
 videomae-ucf101-subset/
 datasets/
 videos/
+video_data/
 
 # C extensions
 *.so

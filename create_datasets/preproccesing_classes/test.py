@@ -3,10 +3,10 @@ from pathlib import Path
 from split_videos_into_new_with_T_frames import SplitConfig, VideoSplitter
 
 # Define your paths and parameters
-Base_path = Path(__file__).parent
+Base_path = Path(__file__).parent.parent
 input_folder = Base_path / "datasets" / "final_no_padding"
 output_folder = Base_path / "datasets" / "T_cropped_no_pad"
-T = 6  # number of frames per clip
+T = 16  # number of frames per clip
 
 # Create config
 config = SplitConfig(

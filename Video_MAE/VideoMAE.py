@@ -32,10 +32,10 @@ import evaluate
 # -----------------------
 model_ckpt = "MCG-NJU/videomae-base" 
 WORKSPACE_PATH = Path(__file__).parent.parent # read_my_eyes/
-output_dir = WORKSPACE_PATH / "Video_MAE" 
+output_dir = WORKSPACE_PATH / "Video_MAE" / "VideoMAE_binary_output"
 
 
-dataset_root = WORKSPACE_PATH/ "create_datasets"/ "datasets"/ "T_cropped_no_pad"  #"dataset_half_full_background_cropped"
+dataset_root = WORKSPACE_PATH/ "create_datasets"/ "datasets"/ "binary_cropped"
 
 
 #### hyperparameters ####
@@ -43,7 +43,7 @@ num_frames_to_sample = 16 # how many frames per video clip
 sample_rate = 1 #see each frame (blinks are fast)
 batch_size_train = 8 # increase if VRAM. # Videos per GPU step
 batch_size_eval = batch_size_train
-num_epochs_train = 12 # If training is noisy/unstable (up). If epochs get too slow (down). range 2–8
+num_epochs_train = 15 # If training is noisy/unstable (up). If epochs get too slow (down). range 2–8
 warm_up_ratio = 0.1 # gradually start training. good with pretrained models
 logging_steps = 10 # how often to print loss. low value if you want to closely monitor training
 fp16_bool = True  # store and compute your tensors using 16-bit floating-points. save memory, faster
@@ -51,7 +51,7 @@ gradient_acc_steps = 4
 metric_for_best_model = "accuracy" # "loss" also possible
 save_strategy = "no" # "steps", "no" also possible
 input_resolution = 224
-N_dont_freeze_last = 4 # how many of the last blocks to keep trainable #12 for base, 24 for large
+N_dont_freeze_last = 6 # how many of the last blocks to keep trainable #12 for base, 24 for large
 
 # --- Optimizer learning rates ---
 # Step size for weight updates. lower if loss oscillates or overfits. high if loss plateaus or slow
@@ -87,21 +87,18 @@ print(f"Unique classes: {class_labels}.")
 # Add class weights 
 # -----------------------
 from collections import Counter
-# Count labels in the training split by folder name
 train_label_ids = [label2id[p.parent.name] for p in train_files]
 counts = Counter(train_label_ids)
+
 num_classes = len(class_labels)
 total = sum(counts.values())
 
-counts = Counter(train_label_ids)  # list of class ids in train
-num_classes = len(class_labels)
-total = sum(counts.values())
+alpha = 1.2  # raise to emphasize minority classes more
+counts_arr = torch.tensor([max(counts.get(i, 0), 1) for i in range(num_classes)], dtype=torch.float32)
 
-raw = torch.tensor([np.sqrt(total / counts[i]) for i in range(num_classes)], dtype=torch.float32)
-class_weights = raw / raw.mean()  # normalized (avg ~ 1)
-
-print("Class weights:", class_weights.tolist())
-
+raw = (total / counts_arr).pow(alpha)   # bigger for smaller classes
+class_weights = raw / raw.mean()        # normalize to mean ≈ 1
+print("Class weights (alpha):", class_weights.tolist())
 
 # -----------------------
 # Processor & transforms
@@ -242,7 +239,7 @@ def data_collator(examples):
 # TrainingArguments 
 # -----------------------
 common_kwargs = dict(
-    output_dir=str(output_dir / "VideoMAe_read_my_eyes_output"),
+    output_dir=str(output_dir),
     remove_unused_columns=False,
     per_device_train_batch_size=batch_size_train,      # keep 1 for 8GB GPU
     per_device_eval_batch_size=batch_size_eval,
@@ -259,7 +256,7 @@ common_kwargs = dict(
 )
 
 args = TrainingArguments(
-    output_dir=str(output_dir / "VideoMAe_read_my_eyes_output"),
+    output_dir=str(output_dir),
     remove_unused_columns=False,
     per_device_train_batch_size=batch_size_train,
     per_device_eval_batch_size= batch_size_eval,
@@ -355,7 +352,7 @@ print("Test metrics:", test_metrics)
 # Save and see results (metrics)
 # -----------------------
 # Save the trained weights & config
-save_dir = output_dir / "VideoMAe_read_my_eyes_output" / "final"
+save_dir = output_dir / f"model_final_Layers_trained{N_dont_freeze_last}_weights_{class_weights.tolist()}_2_classes"
 save_dir.mkdir(parents=True, exist_ok=True)
 trainer.save_model(str(save_dir))             # saves model + tokenizer/processor state
 image_processor.save_pretrained(str(save_dir))
@@ -397,7 +394,7 @@ with np.errstate(invalid="ignore", divide="ignore"):
     cm_norm = np.nan_to_num(cm_norm)  # replace NaNs if a class has 0 support
 
 # Save path (same parent as your "final" folder)
-cm_path = (output_dir / "VideoMAe_read_my_eyes_output" / "confusion_matrix.png")
+cm_path = (output_dir / f"CM__Layers_trained{N_dont_freeze_last}_weights_{class_weights.tolist()}_2_classes.png")
 cm_path.parent.mkdir(parents=True, exist_ok=True)
 
 fig, ax = plt.subplots(figsize=(8, 6), dpi=150)
@@ -411,7 +408,7 @@ ax.set_xticklabels(class_labels, rotation=45, ha="right")
 ax.set_yticklabels(class_labels)
 ax.set_xlabel("Predicted label")
 ax.set_ylabel("True label")
-ax.set_title("Confusion Matrix (row-normalized)")
+ax.set_title(f"Confusion Matrix (row-normalized). Layers_trained:{N_dont_freeze_last} weights:{class_weights.tolist()} ")
 
 # Annotate cells with "percent (count)"
 for i in range(cm.shape[0]):
