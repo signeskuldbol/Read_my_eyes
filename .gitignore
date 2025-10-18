@@ -6,10 +6,10 @@ __pycache__/
 demo_from_huggingface/
 videomae-ucf101-subset/
 datasets/
-dataset/
+labels/
 videos/
-video_data/
 output_3_classes/
+yolov8l_horse_face_detection/
 
 Video_MAE/VideoMAE_binary_output/*
 !Video_MAE/VideoMAE_binary_output/CM_*.png
