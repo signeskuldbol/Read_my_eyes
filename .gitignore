@@ -9,6 +9,11 @@ datasets/
 dataset/
 videos/
 video_data/
+output_3_classes/
+
+Video_MAE/VideoMAE_binary_output/*
+!Video_MAE/VideoMAE_binary_output/CM_*.png
+
 
 # C extensions
 *.so
