@@ -9,7 +9,7 @@ datasets/
 labels/
 videos/
 output_3_classes/
-yolov8l_horse_face_detection/
+create_datasets/preproccesing_classes/yolov8l_horse_face_detection.pt
 
 Video_MAE/VideoMAE_binary_output/*
 !Video_MAE/VideoMAE_binary_output/CM_*.png
