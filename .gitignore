@@ -6,7 +6,8 @@ __pycache__/
 demo_from_huggingface/
 videomae-ucf101-subset/
 datasets/
-labels/
+annotations/
+yolo12n.pt
 videos/
 output_3_classes/
 create_datasets/preproccesing_classes/yolov8l_horse_face_detection.pt

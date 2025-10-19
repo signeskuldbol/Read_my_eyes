@@ -9,7 +9,7 @@ random.seed(42)
 # ---- CONFIG ----
 Workspace_DIR = Path(__file__).parent.parent.resolve()
 print("Workspace_DIR:", Workspace_DIR)
-DATASET_DIR = Workspace_DIR / "datasets" / "unpadded_dataset"
+DATASET_DIR = Workspace_DIR / "datasets" / "frames_no_padding"
 OUTPUT_DIR = Workspace_DIR / "datasets" / "sorted_no_pad_no_crop"
 SPLIT_RATIOS = {"train": 0.7, "val": 0.2, "test": 0.1}
 # ----------------
