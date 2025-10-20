@@ -3,8 +3,8 @@ import json, os, shutil
 from pathlib import Path
 
 # ---- EDIT THESE 2 ----
-NDJSON = Path(r"C:\Users\Signe Møller\OneDrive\Skrivebord\Job\Read_my_eyes\yolo_approach\annotations\eyes_copy.ndjson")
-OUT    = Path(r"C:\_ultra_data\horse_eyes")  # ASCII, not on OneDrive
+NDJSON = Path(r"C:\Users\Signe Møller\OneDrive\Skrivebord\Job\Read_my_eyes\yolo_approach\annotations\eyes_reviewed.ndjson")
+OUT    = Path(r"C:\_yolo_data\horse_eyes")  # ASCII, not on OneDrive
 # ----------------------
 
 def safe_link_or_copy(src: Path, dst: Path):
