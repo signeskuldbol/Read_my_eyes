@@ -8,9 +8,10 @@ videomae-ucf101-subset/
 datasets/
 annotations/
 yolo12n.pt
-videos/
 output_3_classes/
-create_datasets/preproccesing_classes/yolov8l_horse_face_detection.pt
+create_datasets/yolov8l_horse_face_detection.pt
+create_datasets/original_videos_annotations/
+
 
 Video_MAE/VideoMAE_binary_output/*
 !Video_MAE/VideoMAE_binary_output/CM_*.png
