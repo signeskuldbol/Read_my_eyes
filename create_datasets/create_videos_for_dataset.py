@@ -55,6 +55,8 @@ annotations_file_path = base_path / "original_videos_annotations" / "JSONAnnotat
 name_output = "action"  #"background" or  "action"
 
 padding = False
+if name_output == "background":
+    padding = False   # no padding for background clips as checks cant be done for overlapping AUs
 
 FPS = 25  
 Frame_time = ( 1.0 / FPS ) # used for padding 

@@ -35,7 +35,7 @@ WORKSPACE_PATH = Path(__file__).parent.parent # read_my_eyes/
 output_dir = WORKSPACE_PATH / "Video_MAE" / "VideoMAE_binary_output"
 
 
-dataset_root = WORKSPACE_PATH/ "create_datasets"/ "datasets"/ "binary_cropped"
+dataset_root = WORKSPACE_PATH/ "create_datasets"/ "datasets"/ "dataset_binary_cropped_split"
 
 
 #### hyperparameters ####
@@ -43,15 +43,15 @@ num_frames_to_sample = 16 # how many frames per video clip
 sample_rate = 1 #see each frame (blinks are fast)
 batch_size_train = 8 # TODO increase if VRAM. # Videos per GPU step
 batch_size_eval = batch_size_train
-num_epochs_train = 15 # TODO If training is noisy/unstable (up). If epochs get too slow (down). range 2–8
+num_epochs_train = 30 # TODO If training is noisy/unstable (up). If epochs get too slow (down). 
 warm_up_ratio = 0.1 # gradually start training. good with pretrained models
-logging_steps = 10 # how often to print loss. low value if you want to closely monitor training
+logging_steps = 30 # how often to print loss. low value if you want to closely monitor training
 fp16_bool = True  # store and compute your tensors using 16-bit floating-points. save memory, faster
 gradient_acc_steps = 4  #TODO
 metric_for_best_model = "accuracy" # "loss" also possible
 save_strategy = "no" # "steps", "no" also possible
 input_resolution = 224
-N_dont_freeze_last = 12 # how many of the last blocks to keep trainable #12 for base, 24 for large
+N_dont_freeze_last = 8 # how many of the last blocks to keep trainable 
 alpha = 1.5  # raise to emphasize minority classes more
 
 # --- Optimizer learning rates ---
@@ -409,7 +409,7 @@ ax.set_xticklabels(class_labels, rotation=45, ha="right")
 ax.set_yticklabels(class_labels)
 ax.set_xlabel("Predicted label")
 ax.set_ylabel("True label")
-ax.set_title(f"Confusion Matrix (row-normalized). Layers_trained:{N_dont_freeze_last} weights:{alpha} ")
+ax.set_title(f"Confusion Matrix (row-normalized). Layers_trained:{N_dont_freeze_last} alpha:{alpha} ")
 
 # Annotate cells with "percent (count)"
 for i in range(cm.shape[0]):
@@ -426,8 +426,11 @@ fig.savefig(cm_path, bbox_inches="tight")
 print(f"Saved confusion matrix to: {cm_path}")
 
 #save hyperparameters used in training
-hyperparams_path = output_dir / f"training_hyperparameters_for_Layers_trained:{N_dont_freeze_last} weights:{alpha}.txt"
+hyperparams_path = output_dir / f"hyperparameters_CM_Layers_trained{N_dont_freeze_last}_alpha_{alpha}.txt"
+hyperparams_path.parent.mkdir(parents=True, exist_ok=True)
 with open(hyperparams_path, "w") as f:
+    f.write(f"Training Hyperparameters for CM_Layers_trained_{N_dont_freeze_last}_alpha_{alpha}\n")
+    f.write(f"trained on {dataset_root} dataset\n")
     f.write(f"num_frames_to_sample: {num_frames_to_sample}\n")
     f.write(f"sample_rate: {sample_rate}\n")
     f.write(f"batch_size_train: {batch_size_train}\n")
