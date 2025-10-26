@@ -1,17 +1,21 @@
 # train_model.py
 from ultralytics import YOLO
 from ultralytics.utils import SETTINGS
+from pathlib import Path
 
-DATA_YAML = r"C:\_ultra_data\horse_eyes\data.yaml"
+# ---- Paths ----
+JOB_DIR = Path(__file__).parent.parent.parent.resolve()  
+DATA_YAML = JOB_DIR / "yolo_data" / "horse_eyes" / "data.yaml"
+# ----------------------
+
 
 def main():
-    # Keep Ultralytics conversions off OneDrive/Unicode paths (already done, but safe)
-    SETTINGS.update({'datasets_dir': r'C:\_ultra_data'})
+    SETTINGS.update({'datasets_dir': str(JOB_DIR / "yolo_data" / "horse_eyes")})
 
     model = YOLO("yolo12n.pt")  
     results = model.train(
         data=DATA_YAML,
-        single_cls=True,          # 1 class = eye
+        single_cls=True,          
         epochs=80,
         imgsz=768,
         batch=16,

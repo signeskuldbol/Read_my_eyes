@@ -13,11 +13,11 @@ print(f"Base path: {Base_path}")
 
 
 # Model
-MODEL_PATH = Base_path / "yolov8l_horse_face_detection.pt"
+MODEL_PATH = Base_path / "yolov12n_eye_detection.pt"
 
 # Dataset I/O (preserve structure)
-INPUT_ROOT  = Base_path / "datasets" / "unpadded_dataset"
-OUTPUT_ROOT = Base_path / "datasets" / "unpadded_dataset_cropped"
+INPUT_ROOT  = Base_path / "datasets" / "dataset_binary"
+OUTPUT_ROOT = Base_path / "datasets" / "dataset_binary_cropped"
 VIDEO_EXTS  = {".mp4", ".mov", ".avi", ".mkv", ".MP4", ".MOV", ".AVI", ".MKV"}
 SKIP_EXISTING = True  # skip if output file already exists
 
@@ -59,7 +59,7 @@ if CLASS_NAME is not None:
     class_id_filter = inv[CLASS_NAME]
 
 # =========================
-# Helpers (same as your single-video script)
+# Helpers 
 # =========================
 def xyxy_to_cxcywh(x1, y1, x2, y2):
     w = max(1.0, x2 - x1)

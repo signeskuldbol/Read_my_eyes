@@ -17,7 +17,7 @@ OUT_NDJSON = Workspace_dir / "yolo_approach" / "annotations" / "eyes_reviewed.nd
 REVIEW_ONLY_TAG = "auto_predicted"  # set to None to review *all* entries in SRC_NDJSON
 
 # Single-class override (handy if you’re only doing class 0 = eye right now)
-SINGLE_CLASS_MODE = True
+SINGLE_CLASS_MODE = False
 # ---------------------------------------------------------------------------
 
 DATASET_ROOT = Workspace_dir / "create_datasets" / "datasets" / "frames_sorted_no_pad_no_crop"

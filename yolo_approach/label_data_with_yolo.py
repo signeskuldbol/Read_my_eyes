@@ -10,10 +10,10 @@ Workspace_ROOT = Path(__file__).parent.parent.resolve()
 DATASET_ROOT = Workspace_ROOT / "create_datasets" /"datasets" / "frames_sorted_no_pad_no_crop"
 
 # Existing NDJSON that already contains your manual annotations
-EXISTING_NDJSON = Workspace_ROOT / "yolo_approach" / "annotations" / "eyes.ndjson"
+EXISTING_NDJSON = Workspace_ROOT / "yolo_approach" / "annotations" / "eyes_reviewed.ndjson"
 
 # The trained model weights (best.pt)
-WEIGHTS = Workspace_ROOT / "yolo_approach" / "annotations" / "runs" / "horse_eyes" / "y12n_eye_v13" / "weights" / "best.pt"
+WEIGHTS = Workspace_ROOT / "yolo_approach" / "annotations" / "runs" / "best.pt"
 
 # Output merged NDJSON (existing annotations + new auto labels for the rest)
 OUT_NDJSON = EXISTING_NDJSON.with_name("eyes_merged_autolabel.ndjson")
@@ -21,7 +21,7 @@ OUT_NDJSON = EXISTING_NDJSON.with_name("eyes_merged_autolabel.ndjson")
 # Model/prediction knobs
 IMGSZ   = 768
 CONF    = 0.15  # low-ish to favor recall (you will review)
-IOU     = 0.6
+IOU     = 0.4
 MAXDET  = 20
 # ----------------------------------------------
 

@@ -10,6 +10,7 @@ annotations/
 yolo12n.pt
 output_3_classes/
 create_datasets/yolov8l_horse_face_detection.pt
+create_datasets/yolov12n_eye_detection.pt
 create_datasets/original_videos_annotations/
 
 
