@@ -16,6 +16,7 @@ create_datasets/original_videos_annotations/
 
 Video_MAE/VideoMAE_binary_output/*
 !Video_MAE/VideoMAE_binary_output/CM_*.png
+!Video_MAE/VideoMAE_binary_output/training_*.txt
 
 
 # C extensions
