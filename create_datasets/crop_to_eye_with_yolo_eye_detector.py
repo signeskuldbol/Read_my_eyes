@@ -9,16 +9,25 @@ import torch
 # =========================
 # Settings
 # =========================
+"""
+This code takes the dataset videos and crops them to the eye using the trained yolo model.
+It performs a two-pass approach:
+1) Run YOLO eye detector on all frames to get eye centers and sizes (stored in a meta JSON).
+2) Re-read the video, crop each frame around the detected eye center 
+(using a global square size based on biggest detected eye size), and write the cropped video.
+
+if no detections are found in a frame, it re-uses the last known center, or falls back to the frame center if none exist.
+"""
+
 Base_path = Path(__file__).parent
-print(f"Base path: {Base_path}")
 
 # Model
 MODEL_PATH = Base_path / "yolov12n_eye_detection.pt"
 
 # Dataset I/O 
-INPUT_ROOT  = Base_path / "datasets" / "dataset_binary"
-OUTPUT_ROOT = Base_path / "datasets" / "dataset_binary_cropped"
-META_ROOT   = Base_path / "datasets" / "dataset_binary_cropped_meta"  # where we store centers/sizes json
+INPUT_ROOT  = Base_path / "datasets" / "New"
+OUTPUT_ROOT = Base_path / "datasets" / "New_cropped"
+META_ROOT   = Base_path / "datasets" / "New_cropped_meta"  # where we store centers/sizes json
 VIDEO_EXTS  = {".mp4", ".mov", ".avi", ".mkv", ".MP4", ".MOV", ".AVI", ".MKV"}
 SKIP_EXISTING = True  # skip if output file already exists
 

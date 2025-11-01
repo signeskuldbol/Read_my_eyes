@@ -7,6 +7,14 @@ from typing import List, Tuple
 import cv2
 import numpy as np
 
+"""
+Use this script to split videos into clips of exactly T frames each.
+Videos with fewer than T frames will have frames repeated as evenly as possible to reach T frames.
+Videos with more than T frames will be split into multiple overlapping clips of T frames each,
+ensuring full coverage of the original video.
+The output clips will be saved in a specified output directory,
+"""
+
 
 @dataclass
 class SplitConfig:

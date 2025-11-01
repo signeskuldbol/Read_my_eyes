@@ -15,17 +15,15 @@ FFMPEG = r"C:/ffmpeg/ffmpeg-8.0-essentials_build/bin/ffmpeg.exe"
 
 
 """
-AU = [
-    "AU143", "AU143L", "AU143R",   # blink
-    "AU47",  "AU47L",  "AU47R",    # half blink
-    "AU145", "AU145L", "AU145R",   # full blink
-]
+# if you want to make clips of specific actions use this:
 
 AU = [
     "AU143",   # blink
     "AU47",    # half blink
     "AU145",   # full blink
 ]
+
+# for background use this: 
 
 # if you want to make sure the clips of interest 
 # does not contain some specefik movement use this:
@@ -37,26 +35,39 @@ AU_avoid = [
 
 AU_background = ["AD51", "AD38", "EAD104", "VC70", "AD53", "AD1", "AD58"]
 """
-# The AU, EAD, etc of interest
-AU = ["AD51", "AD38", "EAD104", "VC70", "AD53", "AD1", "AD58"]
 
-# None if no AUs should be avoided
-AU_avoid = AU_avoid = [
+"""
+This code creates video clips for specific action units (AUs) from a set of original videos 
+and their annotations. It reads the annotations from a JSON file, extracts clips corresponding
+to the specified AUs, and saves them to an output directory. The clips can be padded with random
+time before and after the action to provide context. Additionally, it can avoid creating clips 
+that contain specific unwanted AUs. This is usefull when making background clips.
+
+For background clips a duration of 16 frames is used.
+for action clips a random padding is used to avoid having actions placed at the middle always.
+"""
+
+
+
+
+# The AU, EAD, etc of interest
+AU = ["AD51", "AD38", "EAD104", "VC70", "AD53", "AD1", "AD58"] #TODO: change to desired AUs for action clips
+
+AU_avoid = [
     "AU143", "AU143L", "AU143R",   # blink
     "AU47",  "AU47L",  "AU47R",    # half blink
     "AU145", "AU145L", "AU145R",   # full blink
-    ]
+    ] #TODO: comment out if not needed
+# obs: go to TODO and set to "background" or au as needed to control naming
+
+desired_number_frames = 16  # for background clips
 
 # Base paths
-base_path = CREATE_DATASETS_FOLDER_DIR
-videos_path = base_path / "original_videos_annotations" / "videos"
-annotations_file_path = base_path / "original_videos_annotations" / "JSONAnnotations" / "annotations.json"
+videos_path = CREATE_DATASETS_FOLDER_DIR / "original_videos_annotations" / "videos"
+annotations_file_path = CREATE_DATASETS_FOLDER_DIR / "original_videos_annotations" / "JSONAnnotations" / "annotations.json"
 
-name_output = "action"  #"background" or  "action"
+name_output = "background"  #"background" or  "action" #TODO: change
 
-padding = False
-if name_output == "background":
-    padding = False   # no padding for background clips as checks cant be done for overlapping AUs
 
 FPS = 25  
 Frame_time = ( 1.0 / FPS ) # used for padding 
@@ -83,7 +94,7 @@ def check_for_overlap(
                             forbidden_aus: list[str],
                             *,
                             exact_match: bool = False,
-                            safety_pad_s: float = 0.0
+                            safety_pad_s: float = 0.5 # extra padding to avoid edge overlaps
                         ) -> bool:
     if video_name not in data:
         return False
@@ -102,6 +113,7 @@ def check_for_overlap(
 
         st = row.get("Start time")
         dur = row.get("Duration (s)")
+        
         if not st or dur is None:
             continue
 
@@ -151,17 +163,16 @@ for au in AU:
                 S = parse_time_to_seconds(start_str)
                 D = float(dur_val)
 
-                if padding:
-                    random_padding = Frame_time * random.randint(2, 10)
-                else:
-                    random_padding = 0.0
+
+                # OBS: this is only to get start time as it is garanteed to get 16 frames when using FFMPEG
                 
-                # Add random padding to start and end, 
-                new_start = max(0.0, S - random_padding)
-                if ((S - random_padding) < 0.0):   # if start padding would go below 0
-                    new_duration = D + random_padding + S # only add padding at the end and the part of start padding that is above 0
-                else:   
-                    new_duration = D + 2.0 * random_padding # 2*random_padding to account for start padding
+                # compute how much padding/cropping is needed for 16 frames
+                number_of_frames = max(0, int(D * FPS))
+                delta = desired_number_frames - number_of_frames  # + => too short, - => too long
+                shift_frames = -delta / 2.0  # negative delta -> positive shift (move start forward)
+                new_start = S + (shift_frames * Frame_time)
+                new_start = max(0.0, new_start)
+                new_duration = desired_number_frames * Frame_time
 
                 action_start = fmt(new_start)
                 duration_str = f"{new_duration:.3f}"
@@ -174,7 +185,7 @@ for au in AU:
                                             clip_duration_s=new_duration,
                                             forbidden_aus=AU_avoid,
                                             exact_match=False,
-                                            safety_pad_s=Frame_time):
+                                            safety_pad_s=Frame_time * 2): # add safety so no overlap happens
                             continue
                 except NameError:
                     pass   # AU_avoid was never defined
@@ -183,7 +194,7 @@ for au in AU:
                 input_file_path = videos_path / video
 
                 # Output folder per AU
-                output_dir = base_path / "datasets" / "New" / "background"    # au when action else "background"
+                output_dir = CREATE_DATASETS_FOLDER_DIR / "datasets" / "New" / "background"    # TODO au when action else "background"
                 output_dir.mkdir(parents=True, exist_ok=True)
 
                 out_path = output_dir / f"{code}_{Path(video).stem.replace('_Video', '')}_{name_output}_{i}.mp4"
@@ -199,7 +210,6 @@ for au in AU:
                     "-c:a", "copy",
                     str(out_path),
                     ]
-    
                 
                 subprocess.run(cmd, check=False)
                 i += 1
