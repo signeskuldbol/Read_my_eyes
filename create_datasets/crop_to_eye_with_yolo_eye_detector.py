@@ -35,7 +35,7 @@ SKIP_EXISTING = True  # skip if output file already exists
 DEVICE = 0 if torch.cuda.is_available() else "cpu"
 
 # Detection
-CONF_THRES = 0.50
+CONF_THRES = 0.50  # confidence threshold
 CLASS_NAME = None  # None = any class
 BATCH = 8          # batch size for pass-1 inference
 
@@ -66,8 +66,8 @@ if CLASS_NAME is not None:
 # =========================
 def clamp_center_to_bounds(cx, cy, side, W, H):
     half = side / 2.0
-    cx = min(max(cx, half), W - 1 - half)
-    cy = min(max(cy, half), H - 1 - half)
+    cx = min(max(cx, half), W - half)
+    cy = min(max(cy, half), H - half)
     return cx, cy
 
 def cxcywh_to_xyxy(cx, cy, w, h):
@@ -207,11 +207,14 @@ def process_video(in_path: Path, out_path: Path, meta_path: Path):
             # Clamp center so the global square stays inside
             cx, cy = clamp_center_to_bounds(cx, cy, global_side, W, H)
 
-            # Crop and resize
-            x1, y1, x2, y2 = cxcywh_to_xyxy(cx, cy, global_side, global_side)
-            x1, y1, x2, y2 = int(round(x1)), int(round(y1)), int(round(x2)), int(round(y2))
-
+            # Compute and clip crop box
+            x1, y1, x2, y2 = map(int, np.round(cxcywh_to_xyxy(cx, cy, global_side, global_side)))
+            x1, y1 = max(0, x1), max(0, y1)
+            x2, y2 = min(W, x2), min(H, y2)
+            if x2 <= x1 or y2 <= y1:  # ensure non-empty
+                x2, y2 = min(W, x1 + 1), min(H, y1 + 1)
             crop = frame[y1:y2, x1:x2]
+
             if crop.size == 0 or crop.shape[0] == 0 or crop.shape[1] == 0:
                 # fallback: re-center to exact middle, re-clamp, retry once
                 cx, cy = clamp_center_to_bounds(W/2.0, H/2.0, global_side, W, H)

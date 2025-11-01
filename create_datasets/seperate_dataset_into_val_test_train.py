@@ -9,8 +9,8 @@ from collections import defaultdict
 Workspace_DIR = Path(__file__).parent.parent.resolve()
 print("Workspace_DIR:", Workspace_DIR)
 
-DATASET_DIR = Workspace_DIR / "create_datasets" / "datasets" / "dataset_binary_cropped"
-OUTPUT_DIR  = Workspace_DIR / "create_datasets" / "datasets" / "dataset_binary_cropped_split"
+DATASET_DIR = Workspace_DIR / "create_datasets" / "datasets" / "New_cropped"
+OUTPUT_DIR  = Workspace_DIR / "create_datasets" / "datasets" / "New_cropped_split"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 SPLIT_RATIOS = {"train": 0.7, "val": 0.2, "test": 0.1}  # must sum to 1.0
