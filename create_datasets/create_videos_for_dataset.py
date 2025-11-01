@@ -47,17 +47,14 @@ For background clips a duration of 16 frames is used.
 for action clips a random padding is used to avoid having actions placed at the middle always.
 """
 
-
-
-
-# The AU, EAD, etc of interest
-AU = ["AD51", "AD38", "EAD104", "VC70", "AD53", "AD1", "AD58"] #TODO: change to desired AUs for action clips
+AU = ["AD51", "AD38", "EAD104", "VC70", "AD53", "AD1", "AD58"]
 
 AU_avoid = [
     "AU143", "AU143L", "AU143R",   # blink
     "AU47",  "AU47L",  "AU47R",    # half blink
     "AU145", "AU145L", "AU145R",   # full blink
-    ] #TODO: comment out if not needed
+    ]
+
 # obs: go to TODO and set to "background" or au as needed to control naming
 
 desired_number_frames = 16  # for background clips
@@ -66,7 +63,7 @@ desired_number_frames = 16  # for background clips
 videos_path = CREATE_DATASETS_FOLDER_DIR / "original_videos_annotations" / "videos"
 annotations_file_path = CREATE_DATASETS_FOLDER_DIR / "original_videos_annotations" / "JSONAnnotations" / "annotations.json"
 
-name_output = "background"  #"background" or  "action" #TODO: change
+name_output = "action"  #"background" or  "action" #TODO: change
 
 
 FPS = 25  
@@ -194,22 +191,25 @@ for au in AU:
                 input_file_path = videos_path / video
 
                 # Output folder per AU
-                output_dir = CREATE_DATASETS_FOLDER_DIR / "datasets" / "New" / "background"    # TODO au when action else "background"
+                output_dir = CREATE_DATASETS_FOLDER_DIR / "datasets" / "New" / "background"   # TODO au when action else "background"
                 output_dir.mkdir(parents=True, exist_ok=True)
 
                 out_path = output_dir / f"{code}_{Path(video).stem.replace('_Video', '')}_{name_output}_{i}.mp4"
 
                 # Note: stream copy is fast but not frame-accurate.
                 # For more accurate cuts, replace "-c", "copy" with codec re-encode options.
+                # Guarantees exactly 16 decoded frames are written (no duration math needed)
                 cmd = [
                     FFMPEG, "-y",
-                    "-i", str(input_file_path),     
-                    "-ss", action_start,            
-                    "-t", duration_str,
+                    "-ss", action_start,                 # seek (keep as string "HH:MM:SS.mmm")
+                    "-i", str(input_file_path),
+                    "-frames:v", "16",                   # <-- exact frame count
+                    "-vsync", "0",                       # <-- don't drop/dup frames
                     "-c:v", "libx264", "-crf", "18", "-preset", "veryfast",
-                    "-c:a", "copy",
+                    "-pix_fmt", "yuv420p",               # broad compatibility
+                    "-an",                               # no audio (simplest for ML datasets)
                     str(out_path),
-                    ]
-                
+                ]
+
                 subprocess.run(cmd, check=False)
                 i += 1
