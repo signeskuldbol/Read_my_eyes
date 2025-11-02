@@ -35,7 +35,7 @@ WORKSPACE_PATH = Path(__file__).parent.parent # read_my_eyes/
 output_dir = WORKSPACE_PATH / "Video_MAE" / "VideoMAE_binary_output"
 
 
-dataset_root = WORKSPACE_PATH/ "create_datasets"/ "datasets"/ "dataset_binary_cropped_split"
+dataset_root = WORKSPACE_PATH/ "create_datasets"/ "datasets"/ "New_cropped_split"
 
 
 #### hyperparameters ####

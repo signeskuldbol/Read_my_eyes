@@ -3,8 +3,8 @@ import json, os, shutil
 from pathlib import Path
 
 # ---- Paths ----
-READ_MY_EYES_DIR = Path(__file__).parent.parent.resolve()  # project root (works on C: or D:)
-NDJSON = READ_MY_EYES_DIR / "yolo_approach" / "annotations" / "eyes_reviewed.ndjson"
+READ_MY_EYES_DIR = Path(__file__).parent.parent.resolve()  # project root 
+NDJSON = READ_MY_EYES_DIR / "yolo_approach" / "annotations" / "eyes_3_class_reviewed.ndjson"
 OUT    = READ_MY_EYES_DIR.parent / "yolo_data" / "horse_eyes"
 # ----------------------
 

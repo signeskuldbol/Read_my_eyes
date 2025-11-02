@@ -6,6 +6,7 @@ from pathlib import Path
 # ---- Paths ----
 JOB_DIR = Path(__file__).parent.parent.parent.resolve()  
 DATA_YAML = JOB_DIR / "yolo_data" / "horse_eyes" / "data.yaml"
+HYP_YAML  = JOB_DIR / "yolo_approach" / "hyp_imbalance.yaml"  
 # ----------------------
 
 
@@ -15,14 +16,14 @@ def main():
     model = YOLO("yolo12n.pt")  
     results = model.train(
         data=DATA_YAML,
-        single_cls=True,          
+        single_cls=False,          
         epochs=80,
         imgsz=768,
         batch=16,
         device=0,                 
         workers=2,                
         project="runs/horse_eyes",
-        name="y12n_eye_v1",
+        name="y12n_3_class",
     )
 
 if __name__ == "__main__":

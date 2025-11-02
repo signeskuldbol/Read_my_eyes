@@ -7,7 +7,7 @@ print(f"Workspace directory: {Workspace_dir}")
 
 # ---- Mode switches ---------------------------------------------------------
 # Normal annotate-from-folders mode (False)  vs  Review/edit existing NDJSON (True)
-REVIEW_MODE = True
+REVIEW_MODE = False
 
 # When REVIEW_MODE=True: which NDJSON to review, and where to save the reviewed one
 SRC_NDJSON = Workspace_dir / "yolo_approach" / "annotations" / "eyes_merged_autolabel.ndjson"
@@ -16,7 +16,7 @@ OUT_NDJSON = Workspace_dir / "yolo_approach" / "annotations" / "eyes_reviewed.nd
 # Review only records that have this tag (e.g. "auto_predicted"), or set to None to review all
 REVIEW_ONLY_TAG = "auto_predicted"  # set to None to review *all* entries in SRC_NDJSON
 
-# Single-class override (handy if you’re only doing class 0 = eye right now)
+# Single-class override ( if you’re only doing class 0 = eye )
 SINGLE_CLASS_MODE = False
 # ---------------------------------------------------------------------------
 
