@@ -15,12 +15,12 @@ Base_path = Path(__file__).parent
 MODEL_PATH = Base_path / "yolov12n_eye_detection.pt"
 
 # Dataset I/O
-INPUT_ROOT  = Base_path / "datasets" / "frames_sorted_no_pad_no_crop"
-OUTPUT_ROOT = Base_path / "datasets" / "frames_sorted_no_pad_cropped"
+INPUT_ROOT  = Base_path / "datasets" / "classified_frames"
+OUTPUT_ROOT = Base_path / "datasets" / "classified_frames_cropped"
 
 # Detection params
 IMGSZ = 768           # YOLO inference size (doesn't change saved crop size)
-CONF_THRES = 0.25     # confidence threshold
+CONF_THRES = 0.2     # confidence threshold
 IOU_THRES  = 0.5      # NMS IoU threshold
 
 # Cropping

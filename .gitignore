@@ -15,10 +15,12 @@ create_datasets/original_videos_annotations/
 convert_annaotations_to_classefication.py
 hyp_imbalance.yaml
 
-
+Video_MAE/VideoMAE_3_class_output/*
 Video_MAE/VideoMAE_binary_output/*
 !Video_MAE/VideoMAE_binary_output/CM_*.png
 !Video_MAE/VideoMAE_binary_output/training_*.txt
+outputs/
+outputs1/
 
 
 # C extensions

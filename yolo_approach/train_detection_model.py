@@ -2,6 +2,7 @@
 from ultralytics import YOLO
 from ultralytics.utils import SETTINGS
 from pathlib import Path
+from weighted_sampler_cls import WeightedClassificationTrainer
 
 # ---- Paths ----
 JOB_DIR = Path(__file__).parent.parent.parent.resolve()  
@@ -24,6 +25,11 @@ def main():
         workers=2,                
         project="runs/horse_eyes",
         name="y12n_3_class",
+        trainer=WeightedClassificationTrainer,  # <-- tell YOLO to use our trainer
+        # (optional) extra augmentation still helps:
+        mixup=0.1,
+        cutmix=0.2,
+        fliplr=0.5,
     )
 
 if __name__ == "__main__":
