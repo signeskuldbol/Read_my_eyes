@@ -23,6 +23,7 @@ outputs/
 outputs1/
 cls_best.pt
 model_final_Layers_trained8alpha1.5_3_classes/
+outputs_optical_flow/
 
 # C extensions
 *.so

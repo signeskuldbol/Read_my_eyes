@@ -20,11 +20,7 @@ CLS_CONF_PRINT_THRESHOLD = 0.0
 FONT = cv.FONT_HERSHEY_SIMPLEX
 action = None
 class_list = []
-
-# ---- Blink override rule (prefer blinks if confident) ----
 CLASS_NAMES = ["eye", "eye_half_blink", "eye_full_blink"]
-CLASS_ID = {n: i for i, n in enumerate(CLASS_NAMES)}
-BLINK_IDS = [CLASS_ID["eye_half_blink"], CLASS_ID["eye_full_blink"]]
 # -----------------------------------------------------------
 
 VIDEO_EXTS = {".mp4", ".mov", ".avi", ".mkv", ".MP4", ".MOV", ".AVI", ".MKV"}

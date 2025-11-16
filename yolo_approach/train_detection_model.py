@@ -28,7 +28,6 @@ def main():
         trainer=WeightedClassificationTrainer,  # <-- tell YOLO to use our trainer
         # (optional) extra augmentation still helps:
         mixup=0.1,
-        cutmix=0.2,
         fliplr=0.5,
     )
 
