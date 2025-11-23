@@ -48,17 +48,15 @@ MAIN IDEAS
    - alpha close to 1.0 → follow detection more (less smoothing)
    - alpha close to 0.0 → follow history more (more smoothing)
 
-9. Optical flow with fixed-size crops (NEW):
+9. Optical flow with fixed-size crops:
    Farneback requires consecutive inputs to have identical shape.
-   Even though bbox sizes evolve smoothly, they still change slightly and would
-   otherwise force flow resets or crash.
-
    Therefore, each crop is resized to a fixed resolution (FLOW_W_FIX, FLOW_H_FIX)
-   before optical flow. This removes size-change artifacts and keeps flow stable.
-   We only reset flow when detection/crop is invalid.
+   before optical flow. We only reset flow when detection/crop is invalid.
 
-The result is a clean and robust blink signal, unaffected by detector jitter,
-blink-related shape changes, or sudden bounding-box spikes.
+10. Vertical-only flow scoring (NEW):
+    We measure blink activity only along the y-axis:
+        score = mean(|dy|)
+    This ignores horizontal motion and removes a lot of head-movement noise.
 """
 
 # ---------- Inference settings ----------
@@ -80,7 +78,7 @@ Workspace_Path = Path(__file__).parent.parent.parent.resolve()
 detection_eye_model_path = Workspace_Path / "Read_my_eyes" / "create_datasets" / "yolov12n_eye_detection.pt"
 
 videos_dir   = Workspace_Path / "Read_my_eyes" / "create_datasets" / "original_videos_annotations" / "videos"
-outputs_dir  = Workspace_Path / "Read_my_eyes" / "Optical_flow" / "outputs_optical_flow" / f"outputs_optical_flow_EMA_{FLOW_BLINK_THR}_{CENTER_SMOOTHING}_{BBOX_SMOOTHING}"
+outputs_dir  = Workspace_Path / "Read_my_eyes" / "Optical_flow" / "outputs_optical_flow" / f"outputs_optical_flow_along_y_axis_{FLOW_BLINK_THR}_{CENTER_SMOOTHING}_{BBOX_SMOOTHING}"
 
 VIDEO_EXTS = {".mp4", ".mov", ".avi", ".mkv", ".MP4", ".MOV", ".AVI", ".MKV"}
 
@@ -108,6 +106,15 @@ def compute_flow(frame1, frame2):
         flags=0
     )
     return flow
+
+
+def mean_vertical_flow(flow):
+    """
+    NEW: Compute mean vertical flow magnitude only.
+    flow[..., 1] is dy. We use absolute dy so up/down both count.
+    """
+    dy = flow[..., 1]
+    return float(np.mean(np.abs(dy)))
 
 
 def clamp_xyxy(x1, y1, x2, y2, W, H):
@@ -354,7 +361,7 @@ def process_one_video(detection_model: YOLO, video_path: Path):
     out_path = outputs_dir / f"{video_path.stem}_optical_flow.mp4"
     print(f"Processing {video_path.name} → {out_path.name}  ({W}x{H} @ {fps:.2f} fps)")
 
-    # --------- PASS 1: read all frames + collect centers + bbox sizes ---------
+    # --------- PASS 1 ---------
     frames  = []
     centers = []
     sizes   = []
@@ -385,9 +392,8 @@ def process_one_video(detection_model: YOLO, video_path: Path):
             w = x2 - x1
             h = y2 - y1
 
-            # bottom-anchored center
             cx = (x1 + x2) / 2.0
-            cy = y2 - 0.5 * h
+            cy = y2 - 0.5 * h  # bottom-anchored center
 
             centers.append((cx, cy))
             sizes.append((w, h))
@@ -408,10 +414,9 @@ def process_one_video(detection_model: YOLO, video_path: Path):
         for frame in frames:
             writer.write(frame)
         writer.release()
-        print("Saved full-frame video:", out_path)
         return
 
-    # --------- Percentile bounds (p5/p95) ---------
+    # --------- Percentiles ---------
     p5_w  = float(np.percentile(det_ws, 5))
     p95_w = float(np.percentile(det_ws, 95))
     p5_h  = float(np.percentile(det_hs, 5))
@@ -440,7 +445,6 @@ def process_one_video(detection_model: YOLO, video_path: Path):
     v_ws = np.array([clean_ws[i] for i in valid_indices], dtype=np.float32)
     v_hs = np.array([clean_hs[i] for i in valid_indices], dtype=np.float32)
 
-    # group separately for w and h
     g_ws, g_hs, w_groups, h_groups = compute_grouped_sizes_separate(v_ws, v_hs)
 
     grouped_ws_full = [None] * len(frames)
@@ -460,13 +464,11 @@ def process_one_video(detection_model: YOLO, video_path: Path):
 
     writer = make_video_writer(out_path, fps, (W, H))
 
-    # --------- FIXED FLOW SIZE (NEW) ---------
-    FLOW_W_FIX = int(round(p95_w))
-    FLOW_H_FIX = int(round(p95_h))
-    FLOW_W_FIX = max(2, FLOW_W_FIX)
-    FLOW_H_FIX = max(2, FLOW_H_FIX)
+    # --------- FIXED FLOW SIZE ---------
+    FLOW_W_FIX = max(2, int(round(p95_w)))
+    FLOW_H_FIX = max(2, int(round(p95_h)))
 
-    # --------- PASS 2: optical flow inside smoothed bbox ---------
+    # --------- PASS 2 (VERTICAL-ONLY FLOW) ---------
     prev_crop_gray = None
 
     for idx, (frame, center, size) in enumerate(zip(frames, smooth_centers_list, smooth_sizes_list)):
@@ -494,7 +496,7 @@ def process_one_video(detection_model: YOLO, video_path: Path):
             if eye_crop.size > 0:
                 eye_gray = cv.cvtColor(eye_crop, cv.COLOR_BGR2GRAY)
 
-                # --- NEW: resize to fixed size for flow ---
+                # resize to fixed size for flow
                 eye_gray_fix = cv.resize(
                     eye_gray, (FLOW_W_FIX, FLOW_H_FIX),
                     interpolation=cv.INTER_LINEAR
@@ -502,14 +504,15 @@ def process_one_video(detection_model: YOLO, video_path: Path):
 
                 if prev_crop_gray is not None:
                     flow = compute_flow(prev_crop_gray, eye_gray_fix)
-                    mag, ang = cv.cartToPolar(flow[..., 0], flow[..., 1])
-                    mean_mag = float(mag.mean())
+
+                    # --- NEW: vertical-only score ---
+                    mean_mag = mean_vertical_flow(flow)
+
                     action = 1 if mean_mag >= FLOW_BLINK_THR else 0
 
                 prev_crop_gray = eye_gray_fix
             else:
                 prev_crop_gray = None
-                print(f"[WARN] Reset at frame {idx} (empty crop).")
 
             if action == 1:
                 box_color = (0, 255, 0)
@@ -519,7 +522,7 @@ def process_one_video(detection_model: YOLO, video_path: Path):
                 status_text = "NONE"
 
             cv.rectangle(annotated, (x1, y1), (x2, y2), box_color, 2)
-            label_text = f"{status_text} | mean: {mean_mag:.2f}"
+            label_text = f"{status_text} | mean|dy|: {mean_mag:.2f}"
             label_y = max(y1 - 10, 20)
             nice_label(annotated, label_text, (x1, label_y), box_color)
 
