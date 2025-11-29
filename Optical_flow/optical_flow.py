@@ -4,6 +4,11 @@ from pathlib import Path
 from ultralytics import YOLO
 from dataclasses import dataclass
 
+# for CM plotting
+import matplotlib.pyplot as plt
+from sklearn.metrics import confusion_matrix
+
+
 
 # it is still sensitive to movements of the horse head, so a stable head pose is recommended
 """
@@ -48,17 +53,15 @@ MAIN IDEAS
    - alpha close to 1.0 → follow detection more (less smoothing)
    - alpha close to 0.0 → follow history more (more smoothing)
 
-9. Optical flow with fixed-size crops (NEW):
+9. Optical flow with fixed-size crops:
    Farneback requires consecutive inputs to have identical shape.
-   Even though bbox sizes evolve smoothly, they still change slightly and would
-   otherwise force flow resets or crash.
-
    Therefore, each crop is resized to a fixed resolution (FLOW_W_FIX, FLOW_H_FIX)
-   before optical flow. This removes size-change artifacts and keeps flow stable.
-   We only reset flow when detection/crop is invalid.
+   before optical flow. We only reset flow when detection/crop is invalid.
 
-The result is a clean and robust blink signal, unaffected by detector jitter,
-blink-related shape changes, or sudden bounding-box spikes.
+10. Vertical-only flow scoring (NEW):
+    We measure blink activity only along the y-axis:
+        score = mean(|dy|)
+    This ignores horizontal motion and removes a lot of head-movement noise.
 """
 
 # ---------- Inference settings ----------
@@ -68,6 +71,9 @@ FONT = cv.FONT_HERSHEY_SIMPLEX
 
 # Optical flow threshold for "blink" / action
 FLOW_BLINK_THR = 1
+
+# Use only vertical component of flow (True) or full magnitude (False)
+USE_VERTICAL_FLOW = True
 
 # Center smoothing factor (0 = use prior, 1 = fully follow new detection)
 CENTER_SMOOTHING = 0.75
@@ -79,10 +85,148 @@ BBOX_SMOOTHING = 0.5
 Workspace_Path = Path(__file__).parent.parent.parent.resolve()
 detection_eye_model_path = Workspace_Path / "Read_my_eyes" / "create_datasets" / "yolov12n_eye_detection.pt"
 
-videos_dir   = Workspace_Path / "Read_my_eyes" / "create_datasets" / "original_videos_annotations" / "videos"
-outputs_dir  = Workspace_Path / "Read_my_eyes" / "Optical_flow" / "outputs_optical_flow" / f"outputs_optical_flow_EMA_{FLOW_BLINK_THR}_{CENTER_SMOOTHING}_{BBOX_SMOOTHING}"
+#videos_dir   = Workspace_Path / "Read_my_eyes" / "create_datasets" / "original_videos_annotations" / "videos"
+videos_dir   = Workspace_Path / "Read_my_eyes" / "create_datasets" / "datasets" / "New_split" / "val"
+outputs_dir  = Workspace_Path / "Read_my_eyes" / "Optical_flow" / "outputs_optical_flow" / f"VIDEOMAE_test_OFlow_y-axis_seperated_{FLOW_BLINK_THR}_{CENTER_SMOOTHING}_{BBOX_SMOOTHING}"
 
 VIDEO_EXTS = {".mp4", ".mov", ".avi", ".mkv", ".MP4", ".MOV", ".AVI", ".MKV"}
+
+
+###########################################################################
+# --------------------- Helper functions ---------------------
+###########################################################################
+# this is for treating blink and halfblinks as one class
+def save_confusion_matrix(
+    labels,
+    preds,
+    class_labels,
+    output_dir: Path,
+    filename: str = "CM_blink_vs_background.png",
+    title: str = "Confusion Matrix (row-normalized)",
+):
+    """
+    labels: list[int]  - ground-truth labels (e.g. 0=background, 1=blink)
+    preds:  list[int]  - predicted labels  (same encoding as labels)
+    class_labels: list[str] - names, in the same order as label IDs
+    output_dir: Path   - where to save the PNG
+    """
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    cm_path = output_dir / filename
+
+    # Build confusion matrix with consistent label order
+    cm = confusion_matrix(labels, preds, labels=list(range(len(class_labels))))
+    with np.errstate(invalid="ignore", divide="ignore"):
+        cm_norm = cm.astype(float) / cm.sum(axis=1, keepdims=True)
+        cm_norm = np.nan_to_num(cm_norm)  # replace NaNs if a class has 0 support
+
+    fig, ax = plt.subplots(figsize=(8, 6), dpi=150)
+    im = ax.imshow(cm_norm, interpolation="nearest", cmap="Blues")
+    plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+
+    # Axis ticks & labels
+    ax.set_xticks(np.arange(len(class_labels)))
+    ax.set_yticks(np.arange(len(class_labels)))
+    ax.set_xticklabels(class_labels, rotation=45, ha="right")
+    ax.set_yticklabels(class_labels)
+    ax.set_xlabel("Predicted label")
+    ax.set_ylabel("True label")
+    ax.set_title(title)
+
+    # Annotate cells with "percent (count)"
+    for i in range(cm.shape[0]):
+        for j in range(cm.shape[1]):
+            pct = f"{cm_norm[i, j]*100:0.0f}%"
+            cnt = int(cm[i, j])
+            ax.text(
+                j,
+                i,
+                f"{pct}\n({cnt})",
+                ha="center",
+                va="center",
+                color="black" if cm_norm[i, j] < 0.6 else "white",
+                fontsize=8,
+                fontweight="bold",
+            )
+
+    fig.tight_layout()
+    fig.savefig(cm_path, bbox_inches="tight")
+    plt.close(fig)
+    print(f"Saved confusion matrix to: {cm_path}")
+
+# this is for treating blink and halfblinks as separate classes even though they are both action 1 in the detections
+def save_confusion_matrix_separate_blinks(
+    labels,
+    preds,
+    true_class_labels,
+    pred_class_labels,
+    output_dir: Path,
+    filename: str = "CM_blink_vs_background.png",
+    title: str = "Confusion Matrix (row-normalized)",
+):
+    """
+    labels: list[int]         – ground-truth labels (e.g. 0=background, 1=half, 2=full)
+    preds:  list[int]         – predicted labels (e.g. 0=no blink, 1=blink)
+    true_class_labels: list[str] – row names (same order as GT IDs)
+    pred_class_labels: list[str] – col names (same order as pred IDs)
+    """
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    cm_path = output_dir / filename
+
+    true_ids = sorted(set(labels))
+    pred_ids = sorted(set(preds))
+
+    # Map IDs to row/col indices
+    true_index = {lab: i for i, lab in enumerate(true_ids)}
+    pred_index = {lab: i for i, lab in enumerate(pred_ids)}
+
+    # Build rectangular CM (len(true_class_labels) x len(pred_class_labels))
+    cm = np.zeros((len(true_class_labels), len(pred_class_labels)), dtype=int)
+    for t, p in zip(labels, preds):
+        if t in true_index and p in pred_index:
+            i = true_index[t]
+            j = pred_index[p]
+            cm[i, j] += 1
+
+    # Row-normalize
+    with np.errstate(invalid="ignore", divide="ignore"):
+        cm_norm = cm.astype(float) / cm.sum(axis=1, keepdims=True)
+        cm_norm = np.nan_to_num(cm_norm)
+
+    fig, ax = plt.subplots(figsize=(8, 6), dpi=150)
+    im = ax.imshow(cm_norm, interpolation="nearest", cmap="Blues")
+    plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+
+    # Axis ticks & labels
+    ax.set_xticks(np.arange(len(pred_class_labels)))
+    ax.set_yticks(np.arange(len(true_class_labels)))
+    ax.set_xticklabels(pred_class_labels, rotation=45, ha="right")
+    ax.set_yticklabels(true_class_labels)
+    ax.set_xlabel("Predicted label")
+    ax.set_ylabel("True label")
+    ax.set_title(title)
+
+    # Annotate cells with "percent (count)"
+    for i in range(cm.shape[0]):
+        for j in range(cm.shape[1]):
+            pct = f"{cm_norm[i, j]*100:0.0f}%"
+            cnt = int(cm[i, j])
+            ax.text(
+                j,
+                i,
+                f"{pct}\n({cnt})",
+                ha="center",
+                va="center",
+                color="black" if cm_norm[i, j] < 0.6 else "white",
+                fontsize=8,
+                fontweight="bold",
+            )
+
+    fig.tight_layout()
+    fig.savefig(cm_path, bbox_inches="tight")
+    plt.close(fig)
+    print(f"Saved confusion matrix to: {cm_path}")
 
 
 def compute_flow(frame1, frame2):
@@ -108,6 +252,24 @@ def compute_flow(frame1, frame2):
         flags=0
     )
     return flow
+
+
+def mean_vertical_flow(flow):
+    """
+    NEW: Compute mean vertical flow magnitude only.
+    flow[..., 1] is dy. We use absolute dy so up/down both count.
+    """
+    dy = flow[..., 1]
+    return float(np.mean(np.abs(dy)))
+
+def mean_full_flow(flow):
+    """
+    Compute mean full flow magnitude: sqrt(dx^2 + dy^2).
+    """
+    dx = flow[..., 0]
+    dy = flow[..., 1]
+    mag = np.sqrt(dx * dx + dy * dy)
+    return float(np.mean(mag))
 
 
 def clamp_xyxy(x1, y1, x2, y2, W, H):
@@ -341,8 +503,10 @@ def compute_grouped_sizes_separate(ws, hs, tol=0.10, min_len=5):
     return clean_w.tolist(), clean_h.tolist(), w_groups, h_groups
 
 
-def process_one_video(detection_model: YOLO, video_path: Path):
+def process_one_video(detection_model: YOLO, video_path: Path, out_path:Path):
+    actions_in_video = []
     cap = cv.VideoCapture(str(video_path))
+    print(f"------------------------------")
     if not cap.isOpened():
         print(f"[WARN] Could not open video: {video_path}")
         return
@@ -351,10 +515,7 @@ def process_one_video(detection_model: YOLO, video_path: Path):
     H  = int(cap.get(cv.CAP_PROP_FRAME_HEIGHT))
     fps = cap.get(cv.CAP_PROP_FPS) or 25.0
 
-    out_path = outputs_dir / f"{video_path.stem}_optical_flow.mp4"
-    print(f"Processing {video_path.name} → {out_path.name}  ({W}x{H} @ {fps:.2f} fps)")
-
-    # --------- PASS 1: read all frames + collect centers + bbox sizes ---------
+    # --------- PASS 1 ---------
     frames  = []
     centers = []
     sizes   = []
@@ -385,9 +546,8 @@ def process_one_video(detection_model: YOLO, video_path: Path):
             w = x2 - x1
             h = y2 - y1
 
-            # bottom-anchored center
             cx = (x1 + x2) / 2.0
-            cy = y2 - 0.5 * h
+            cy = y2 - 0.5 * h  # bottom-anchored center
 
             centers.append((cx, cy))
             sizes.append((w, h))
@@ -400,7 +560,7 @@ def process_one_video(detection_model: YOLO, video_path: Path):
 
     cap.release()
 
-    print(f"centers collected: {len(centers)}, sizes collected: {len(sizes)}")
+    #print(f"centers collected: {len(centers)}, sizes collected: {len(sizes)}")
 
     if len(det_ws) == 0 or len(det_hs) == 0:
         print("[INFO] No detections found in this video. Saving full-frame output.")
@@ -408,17 +568,16 @@ def process_one_video(detection_model: YOLO, video_path: Path):
         for frame in frames:
             writer.write(frame)
         writer.release()
-        print("Saved full-frame video:", out_path)
         return
 
-    # --------- Percentile bounds (p5/p95) ---------
+    # --------- Percentiles ---------
     p5_w  = float(np.percentile(det_ws, 5))
     p95_w = float(np.percentile(det_ws, 95))
     p5_h  = float(np.percentile(det_hs, 5))
     p95_h = float(np.percentile(det_hs, 95))
 
-    print(f"[INFO] Width bounds p5-p95:  {p5_w:.1f} - {p95_w:.1f}")
-    print(f"[INFO] Height bounds p5-p95: {p5_h:.1f} - {p95_h:.1f}")
+    #print(f"[INFO] Width bounds p5-p95:  {p5_w:.1f} - {p95_w:.1f}")
+    #print(f"[INFO] Height bounds p5-p95: {p5_h:.1f} - {p95_h:.1f}")
 
     raw_ws = [s[0] if s is not None else None for s in sizes]
     raw_hs = [s[1] if s is not None else None for s in sizes]
@@ -440,7 +599,6 @@ def process_one_video(detection_model: YOLO, video_path: Path):
     v_ws = np.array([clean_ws[i] for i in valid_indices], dtype=np.float32)
     v_hs = np.array([clean_hs[i] for i in valid_indices], dtype=np.float32)
 
-    # group separately for w and h
     g_ws, g_hs, w_groups, h_groups = compute_grouped_sizes_separate(v_ws, v_hs)
 
     grouped_ws_full = [None] * len(frames)
@@ -460,13 +618,11 @@ def process_one_video(detection_model: YOLO, video_path: Path):
 
     writer = make_video_writer(out_path, fps, (W, H))
 
-    # --------- FIXED FLOW SIZE (NEW) ---------
-    FLOW_W_FIX = int(round(p95_w))
-    FLOW_H_FIX = int(round(p95_h))
-    FLOW_W_FIX = max(2, FLOW_W_FIX)
-    FLOW_H_FIX = max(2, FLOW_H_FIX)
+    # --------- FIXED FLOW SIZE ---------
+    FLOW_W_FIX = max(2, int(round(p95_w)))
+    FLOW_H_FIX = max(2, int(round(p95_h)))
 
-    # --------- PASS 2: optical flow inside smoothed bbox ---------
+    # --------- PASS 2 (VERTICAL-ONLY FLOW) ---------
     prev_crop_gray = None
 
     for idx, (frame, center, size) in enumerate(zip(frames, smooth_centers_list, smooth_sizes_list)):
@@ -494,7 +650,7 @@ def process_one_video(detection_model: YOLO, video_path: Path):
             if eye_crop.size > 0:
                 eye_gray = cv.cvtColor(eye_crop, cv.COLOR_BGR2GRAY)
 
-                # --- NEW: resize to fixed size for flow ---
+                # resize to fixed size for flow
                 eye_gray_fix = cv.resize(
                     eye_gray, (FLOW_W_FIX, FLOW_H_FIX),
                     interpolation=cv.INTER_LINEAR
@@ -502,14 +658,18 @@ def process_one_video(detection_model: YOLO, video_path: Path):
 
                 if prev_crop_gray is not None:
                     flow = compute_flow(prev_crop_gray, eye_gray_fix)
-                    mag, ang = cv.cartToPolar(flow[..., 0], flow[..., 1])
-                    mean_mag = float(mag.mean())
+
+                    # Choose scoring mode: vertical or full magnitude
+                    if USE_VERTICAL_FLOW:
+                        mean_mag = mean_vertical_flow(flow)
+                    else:
+                        mean_mag = mean_full_flow(flow)
+
                     action = 1 if mean_mag >= FLOW_BLINK_THR else 0
 
                 prev_crop_gray = eye_gray_fix
             else:
                 prev_crop_gray = None
-                print(f"[WARN] Reset at frame {idx} (empty crop).")
 
             if action == 1:
                 box_color = (0, 255, 0)
@@ -517,9 +677,12 @@ def process_one_video(detection_model: YOLO, video_path: Path):
             else:
                 box_color = (0, 255, 255)
                 status_text = "NONE"
+            
+            # append action to list
+            actions_in_video.append(action)
 
             cv.rectangle(annotated, (x1, y1), (x2, y2), box_color, 2)
-            label_text = f"{status_text} | mean: {mean_mag:.2f}"
+            label_text = f"{status_text} | mean|dy|: {mean_mag:.2f}"
             label_y = max(y1 - 10, 20)
             nice_label(annotated, label_text, (x1, label_y), box_color)
 
@@ -534,15 +697,21 @@ def process_one_video(detection_model: YOLO, video_path: Path):
         writer.write(annotated)
 
     writer.release()
-    print("Saved:", out_path)
+    print("Saved:", out_path.stem)
+    return actions_in_video
 
 
 def main():
     detection_model = YOLO(str(detection_eye_model_path))
     outputs_dir.mkdir(parents=True, exist_ok=True)
 
+    # Collect labels & predictions for CM
+    all_labels = []  # 0 = background, 1 = blink
+    all_preds = []
+
+    # Recursively search for all video files
     video_files = [
-        p for p in videos_dir.iterdir()
+        p for p in videos_dir.rglob("*")
         if p.suffix in VIDEO_EXTS and p.is_file()
     ]
     if not video_files:
@@ -550,16 +719,78 @@ def main():
         return
 
     for vid in sorted(video_files):
-        out_path = outputs_dir / f"{vid.stem}_annotated_of.mp4"
+        # Mirror folder structure in outputs
+        rel = vid.relative_to(videos_dir)
+        out_path = outputs_dir / rel.parent / f"{vid.stem}_annotated_of.mp4"
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+
         if out_path.exists():
-            print(f"[SKIP] Output already exists for {vid.name}, skipping.")
+            print(f"[SKIP] Output already exists for {rel}, skipping.")
             continue
 
-        try:
-            process_one_video(detection_model, vid)
-        except Exception as e:
-            print(f"[ERROR] Failed on {vid.name}: {e}")
+        # --- ground-truth label from folder name ---
+        parent_name = vid.parent.name.lower()
+        if parent_name == "background":
+            true_label = 0                  # background
+        # remove the following if you want to use save_confusion_matrix
+        elif parent_name == "au47":
+            true_label = 1                    # half blink
+        elif parent_name == "au145":
+            true_label = 2                    # full blink
 
+
+        try:
+            actions_detected = process_one_video(detection_model, vid, out_path)  # saves video internally
+            blink_count = actions_detected.count(1)
+
+            # --- prediction: 1 if at least one blink frame, else 0 ---
+            pred_label = 1 if blink_count > 0 else 0
+
+            all_labels.append(true_label)
+            all_preds.append(pred_label)
+
+            if blink_count > 0:
+                print(f"[ACTION] Blink detected in {rel}, frames with blink: {blink_count}")
+            else:
+                print(f"[ACTION] No blink detected in {rel}")
+
+        except Exception as e:
+            print(f"[ERROR] Failed on {rel}: {e}")
+
+    # --- After all videos, make confusion matrix ---
+    """
+    if all_labels:
+        class_labels = ["background", "blink"]
+        save_confusion_matrix(
+            labels=all_labels,
+            preds=all_preds,
+            class_labels=class_labels,
+            output_dir=outputs_dir,  # or outputs_dir.parent, etc.
+            filename="CM_blink_vs_background.png",
+            title="Confusion Matrix (row-normalized). Blink detection",
+        )
+        """
+        # --- After all videos, make confusion matrix ---
+    if all_labels:
+        true_class_labels = [
+            "background",
+            "half-blink (AU145)",
+            "full-blink (AU47)",
+        ]
+        pred_class_labels = [
+            "no blink",
+            "blink",
+        ]
+
+        save_confusion_matrix_separate_blinks(
+            labels=all_labels,
+            preds=all_preds,
+            true_class_labels=true_class_labels,
+            pred_class_labels=pred_class_labels,
+            output_dir=outputs_dir,
+            filename="CM_background_half_full_vs_blink.png",
+            title="Confusion Matrix (row-normalized). Blink vs background, half/full split",
+        )
 
 if __name__ == "__main__":
     main()
