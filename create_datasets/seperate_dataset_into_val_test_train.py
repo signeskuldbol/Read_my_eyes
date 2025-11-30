@@ -9,11 +9,11 @@ from collections import defaultdict
 Workspace_DIR = Path(__file__).parent.parent.resolve()
 print("Workspace_DIR:", Workspace_DIR)
 
-DATASET_DIR = Workspace_DIR / "create_datasets" / "datasets" / "classified_frames_cropped"
-OUTPUT_DIR  = Workspace_DIR / "create_datasets" / "datasets" / "classified_frames_cropped_split"
+DATASET_DIR = Workspace_DIR / "create_datasets" / "datasets" / "New"
+OUTPUT_DIR  = Workspace_DIR / "create_datasets" / "datasets" / "New_split_new_way"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-SPLIT_RATIOS = {"train": 0.85, "val": 0.15, "test": 0}  # must sum to 1.0
+SPLIT_RATIOS = {"train": 0.70, "val": 0.20, "test": 0.10}  # must sum to 1.0
 VIDEO_EXTS   = {".mp4", ".mov", ".avi", ".mkv", ".MP4", ".MOV", ".AVI", ".MKV"}
 SEED         = 42  # reproducibility
 # --------------

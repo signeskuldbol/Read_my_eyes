@@ -6,6 +6,39 @@ from pathlib import Path
 from ultralytics import YOLO
 from tqdm import tqdm
 
+"""
+SUMMARY
+-------
+This script processes a dataset of images and produces a clean,
+eye-centered version of the dataset by running YOLO-based eye detection
+and cropping each image around the detected eye. The original folder
+structure is preserved.
+
+MAIN IDEAS
+----------
+1. loads all images and keeps output structure
+
+2. YOLO eye detection:
+   - For each image, the highest-confidence eye detection is selected.
+   - If no detection is found, the original image is saved unchanged.
+
+3. Square padded cropping:
+   - The detected bounding box is converted into a square region centered
+     on the eye.
+   - Side length = max(w, h) * (1 + PADDING_FACTOR).
+   - The crop is clamped so it stays fully inside the image.
+
+4. Edge-case handling:
+   - No detection → keep original image (logged as a warning).
+   - Invalid or empty crop → also fall back to the original image.
+
+RESULT
+------
+You obtain a dataset where every frame is a consistent, tightly cropped
+eye region—ready for downstream tasks like optical-flow blink detection
+or VideoMAE training—while preserving the original dataset structure.
+"""
+
 # ===================== CONFIG =====================
 # Base paths (you already have these in your snippet)
 READ_MY_EYES_DIR = Path(__file__).parent.parent.resolve()

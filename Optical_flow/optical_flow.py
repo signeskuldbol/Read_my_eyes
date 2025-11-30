@@ -69,11 +69,11 @@ DET_CONF = 0.25
 DET_IOU  = 0.5
 FONT = cv.FONT_HERSHEY_SIMPLEX
 
-# Optical flow threshold for "blink" / action
-FLOW_BLINK_THR = 1
-
 # Use only vertical component of flow (True) or full magnitude (False)
 USE_VERTICAL_FLOW = True
+
+# Optical flow threshold for "blink" / action
+FLOW_BLINK_THR = 0.8 if USE_VERTICAL_FLOW else 1.2
 
 # Center smoothing factor (0 = use prior, 1 = fully follow new detection)
 CENTER_SMOOTHING = 0.75
@@ -86,8 +86,8 @@ Workspace_Path = Path(__file__).parent.parent.parent.resolve()
 detection_eye_model_path = Workspace_Path / "Read_my_eyes" / "create_datasets" / "yolov12n_eye_detection.pt"
 
 #videos_dir   = Workspace_Path / "Read_my_eyes" / "create_datasets" / "original_videos_annotations" / "videos"
-videos_dir   = Workspace_Path / "Read_my_eyes" / "create_datasets" / "datasets" / "New_split" / "val"
-outputs_dir  = Workspace_Path / "Read_my_eyes" / "Optical_flow" / "outputs_optical_flow" / f"VIDEOMAE_test_OFlow_y-axis_seperated_{FLOW_BLINK_THR}_{CENTER_SMOOTHING}_{BBOX_SMOOTHING}"
+videos_dir   = Workspace_Path / "Read_my_eyes" / "create_datasets" / "datasets" / "NEW_split_new_way" / "test"
+outputs_dir  = Workspace_Path / "Read_my_eyes" / "Optical_flow" / "outputs_optical_flow" / f"VIDEOMAE_test_Op_Flow_{'_along_y_axis' if USE_VERTICAL_FLOW else ''}Thr_{FLOW_BLINK_THR}"
 
 VIDEO_EXTS = {".mp4", ".mov", ".avi", ".mkv", ".MP4", ".MOV", ".AVI", ".MKV"}
 
@@ -102,7 +102,7 @@ def save_confusion_matrix(
     class_labels,
     output_dir: Path,
     filename: str = "CM_blink_vs_background.png",
-    title: str = "Confusion Matrix (row-normalized)",
+    title: str = "Confusion Matrix (row-normalized) with Thres: "+str(FLOW_BLINK_THR),
 ):
     """
     labels: list[int]  - ground-truth labels (e.g. 0=background, 1=blink)
@@ -162,13 +162,13 @@ def save_confusion_matrix_separate_blinks(
     pred_class_labels,
     output_dir: Path,
     filename: str = "CM_blink_vs_background.png",
-    title: str = "Confusion Matrix (row-normalized)",
+    title: str = "Confusion Matrix (row-normalized) with Thres: "+str(FLOW_BLINK_THR),
 ):
     """
-    labels: list[int]         – ground-truth labels (e.g. 0=background, 1=half, 2=full)
-    preds:  list[int]         – predicted labels (e.g. 0=no blink, 1=blink)
-    true_class_labels: list[str] – row names (same order as GT IDs)
-    pred_class_labels: list[str] – col names (same order as pred IDs)
+    labels: list[int] - ground-truth labels (e.g. 0=background, 1=half, 2=full)
+    preds:  list[int] - predicted labels (e.g. 0=no blink, 1=blink)
+    true_class_labels: list[str] - row names (same order as GT IDs)
+    pred_class_labels: list[str] - col names (same order as pred IDs)
     """
 
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -788,8 +788,8 @@ def main():
             true_class_labels=true_class_labels,
             pred_class_labels=pred_class_labels,
             output_dir=outputs_dir,
-            filename="CM_background_half_full_vs_blink.png",
-            title="Confusion Matrix (row-normalized). Blink vs background, half/full split",
+            filename=f"CM_optical_flow{'_along_y_axis' if USE_VERTICAL_FLOW else ''}.png",
+            title=f"CM (row-normalized). {'Along y-axis.' if USE_VERTICAL_FLOW else ''} Threshold: "+str(FLOW_BLINK_THR),
         )
 
 if __name__ == "__main__":

@@ -24,7 +24,7 @@ from transformers import (
 import torch.nn as nn
 from torch.optim import AdamW
 
-import evaluate
+import wandb # for logging
 
 
 # -----------------------
@@ -32,20 +32,22 @@ import evaluate
 # -----------------------
 model_ckpt = "MCG-NJU/videomae-base" 
 WORKSPACE_PATH = Path(__file__).parent.parent # read_my_eyes/
-output_dir = WORKSPACE_PATH / "Video_MAE" / "VideoMAE_binary_output"
+dataset_root = WORKSPACE_PATH/ "create_datasets"/ "datasets" / "NEW_split_cropped_new_way"
+
+output_dir = WORKSPACE_PATH / "Video_MAE" / "outputs" / f"VideoMAE_{dataset_root.stem}"
+output_dir.mkdir(parents=True, exist_ok=True)
 
 
-dataset_root = WORKSPACE_PATH/ "create_datasets"/ "datasets"/ "New_cropped_split"
-
-
+# -----------------------
 #### hyperparameters ####
+# -----------------------
 num_frames_to_sample = 16 # how many frames per video clip
 sample_rate = 1 #see each frame (blinks are fast)
 batch_size_train = 8 # TODO increase if VRAM. # Videos per GPU step
 batch_size_eval = batch_size_train
 num_epochs_train = 30 # TODO If training is noisy/unstable (up). If epochs get too slow (down). 
 warm_up_ratio = 0.1 # gradually start training. good with pretrained models
-logging_steps = 30 # how often to print loss. low value if you want to closely monitor training
+logging_steps = 5 # how often to print loss. low value if you want to closely monitor training
 fp16_bool = True  # store and compute your tensors using 16-bit floating-points. save memory, faster
 gradient_acc_steps = 4  #TODO
 metric_for_best_model = "accuracy" # "loss" also possible
@@ -63,6 +65,47 @@ weight_decay_encoder = 0.05   # controls weight like regularization. it discoura
 weight_decay_head = 0.0       # no weight decay on head. we dont want to regularize it
 fraction_last = 0             #TODO # last % of layers get lr_encoder_last, rest get lr_encoder_rest
 #########################
+
+# -----------------------
+# W&B setup
+# -----------------------
+os.environ["WANDB_PROJECT"] = "Horse blink with VideoMAE"         
+os.environ["WANDB_ENTITY"]  = "signe_m_s-aalborg-university"      
+os.environ["WANDB_DIR"]     = str(output_dir) 
+
+import wandb  # make sure this is at the top with your imports
+
+# -----------------------
+# W&B setup (run init)
+# -----------------------
+wandb_run = wandb.init(
+    entity="signe_m_s-aalborg-university",
+    project="Horse blink with VideoMAE",
+    name=f"VideoMAE_new_crop_L{N_dont_freeze_last}_alpha{alpha}",
+    config={
+        "num_frames_to_sample": num_frames_to_sample,
+        "sample_rate": sample_rate,
+        "batch_size_train": batch_size_train,
+        "batch_size_eval": batch_size_eval,
+        "num_epochs_train": num_epochs_train,
+        "warm_up_ratio": warm_up_ratio,
+        "logging_steps": logging_steps,
+        "fp16_bool": fp16_bool,
+        "gradient_acc_steps": gradient_acc_steps,
+        "metric_for_best_model": metric_for_best_model,
+        "save_strategy": save_strategy,
+        "input_resolution": input_resolution,
+        "N_dont_freeze_last": N_dont_freeze_last,
+        "alpha": alpha,
+        "lr_encoder_rest": lr_encoder_rest,
+        "lr_encoder_last": lr_encoder_last,
+        "lr_classifier_head": lr_classifier_head,
+        "weight_decay_encoder": weight_decay_encoder,
+        "weight_decay_head": weight_decay_head,
+        "fraction_last": fraction_last,
+    },
+)
+
 
 # -----------------------
 # Collect files & classes
@@ -100,6 +143,14 @@ counts_arr = torch.tensor([max(counts.get(i, 0), 1) for i in range(num_classes)]
 raw = (total / counts_arr).pow(alpha)   # bigger for smaller classes
 class_weights = raw / raw.mean()        # normalize to mean ≈ 1
 print("Class weights (alpha):", class_weights.tolist())
+
+# Build readable mapping
+class_weight_dict = {
+    class_labels[i]: float(class_weights[i])
+    for i in range(num_classes)
+}
+# Log to W&B
+wandb.log({"class_weights": class_weight_dict})
 
 # -----------------------
 # Processor & transforms
@@ -239,6 +290,7 @@ def data_collator(examples):
 # -----------------------
 # TrainingArguments 
 # -----------------------
+""" We make a custom args instead of this:
 common_kwargs = dict(
     output_dir=str(output_dir),
     remove_unused_columns=False,
@@ -254,7 +306,7 @@ common_kwargs = dict(
     metric_for_best_model=metric_for_best_model,
     greater_is_better=True if metric_for_best_model != "loss" else False,
     save_strategy=save_strategy,
-)
+)"""
 
 args = TrainingArguments(
     output_dir=str(output_dir),
@@ -264,12 +316,13 @@ args = TrainingArguments(
     num_train_epochs=num_epochs_train,
     warmup_ratio=warm_up_ratio,
     logging_steps=logging_steps,
-    report_to=[],
+    report_to=["wandb"], # log to W&B
     fp16=fp16_bool,
     gradient_accumulation_steps=gradient_acc_steps,
     load_best_model_at_end=False,  # not supported without eval loop
     save_strategy=save_strategy,
     save_total_limit=2,
+    run_name=f"VideoMAE_L_{N_dont_freeze_last}_alpha_{alpha}",
 )
 
 
@@ -309,9 +362,11 @@ class WeightedTrainer(Trainer):
         logits = outputs.logits
         loss_fct = nn.CrossEntropyLoss(weight=class_weights.to(logits.device))
         loss = loss_fct(logits, labels)
-        return (loss, outputs) if return_outputs else loss
+        # --W&B LOGGING ----
+        self.log({"train_loss": loss.detach().cpu().item()})
+        return (loss, outputs) if return_outputs else loss    
 
-    
+
     def create_optimizer(self):
         if self.optimizer is None:
             print(">>> Creating custom optimizer with layer-wise LRs ...")
@@ -344,10 +399,15 @@ print(" Training complete. Evaluating on validation set ...")
 val_metrics = trainer.evaluate(val_dataset)
 print("Validation metrics:", val_metrics)
 
+wandb.log({"val_accuracy": val_metrics["eval_accuracy"],
+           "val_loss": val_metrics["eval_loss"]})
+
 print(" Evaluating on test set ...")
 test_metrics = trainer.evaluate(test_dataset)
 print("Test metrics:", test_metrics)
 
+wandb.log({"test_accuracy": test_metrics["eval_accuracy"],
+           "test_loss": test_metrics["eval_loss"]})
 
 # -----------------------
 # Save and see results (metrics)
@@ -424,35 +484,9 @@ for i in range(cm.shape[0]):
 fig.tight_layout()
 fig.savefig(cm_path, bbox_inches="tight")   
 print(f"Saved confusion matrix to: {cm_path}")
-
-#save hyperparameters used in training
-hyperparams_path = output_dir / f"hyperparameters_CM_Layers_trained{N_dont_freeze_last}_alpha_{alpha}.txt"
-hyperparams_path.parent.mkdir(parents=True, exist_ok=True)
-with open(hyperparams_path, "w") as f:
-    f.write(f"Training Hyperparameters for CM_Layers_trained_{N_dont_freeze_last}_alpha_{alpha}\n")
-    f.write(f"trained on {dataset_root} dataset\n")
-    f.write(f"num_frames_to_sample: {num_frames_to_sample}\n")
-    f.write(f"sample_rate: {sample_rate}\n")
-    f.write(f"batch_size_train: {batch_size_train}\n")
-    f.write(f"batch_size_eval: {batch_size_eval}\n")
-    f.write(f"num_epochs_train: {num_epochs_train}\n")
-    f.write(f"warm_up_ratio: {warm_up_ratio}\n")
-    f.write(f"logging_steps: {logging_steps}\n")
-    f.write(f"fp16_bool: {fp16_bool}\n")
-    f.write(f"gradient_acc_steps: {gradient_acc_steps}\n")
-    f.write(f"metric_for_best_model: {metric_for_best_model}\n")
-    f.write(f"save_strategy: {save_strategy}\n")
-    f.write(f"input_resolution: {input_resolution}\n")
-    f.write(f"N_dont_freeze_last: {N_dont_freeze_last}\n")
-    f.write(f"alpha (class weight exponent): {alpha}\n")
-    f.write(f"Learning Rates:\n")
-    f.write(f"  lr_encoder_rest: {lr_encoder_rest}\n")
-    f.write(f"  lr_encoder_last: {lr_encoder_last}\n")
-    f.write(f"  lr_classifier_head: {lr_classifier_head}\n")
-    f.write(f"Weight Decays:\n")
-    f.write(f"  weight_decay_encoder: {weight_decay_encoder}\n")
-    f.write(f"  weight_decay_head: {weight_decay_head}\n")
-    f.write(f"fraction_last: {fraction_last}\n")
-print(f"Saved training hyperparameters to: {hyperparams_path}")
+# save to W&B
+wandb.log({"confusion_matrix": wandb.Image(fig)})
 
 plt.show()
+# wandb: finish the run
+wandb.finish()

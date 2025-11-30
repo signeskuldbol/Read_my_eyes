@@ -15,12 +15,21 @@ create_datasets/original_videos_annotations/
 convert_annaotations_to_classefication.py
 hyp_imbalance.yaml
 
-Video_MAE/VideoMAE_3_class_output/*
-Video_MAE/VideoMAE_binary_output/*
-!Video_MAE/VideoMAE_binary_output/CM_*.png
-!Video_MAE/VideoMAE_binary_output/training_*.txt
-outputs/
-outputs1/
+
+# In Video_MAE/outputs, ignore big / generated files, but allow images
+Video_MAE/outputs/**/*.pt
+Video_MAE/outputs/**/*.bin
+Video_MAE/outputs/**/*.safetensors
+Video_MAE/outputs/**/*.mp4
+Video_MAE/outputs/**/*.csv
+Video_MAE/outputs/**/*.txt
+Video_MAE/outputs/**/*.json
+Video_MAE/outputs/**/*.yaml
+Video_MAE/outputs/**/wandb/
+
+
+yolo_approach/outputs/
+yolo_approach/outputs1/
 cls_best.pt
 model_final_Layers_trained8alpha1.5_3_classes/
 outputs_optical_flow/
