@@ -9,8 +9,8 @@ datasets/
 annotations/
 yolo12n.pt
 output_3_classes/
-create_datasets/yolov8l_horse_face_detection.pt
-create_datasets/yolov12n_eye_detection.pt
+#create_datasets/yolov8l_horse_face_detection.pt
+#create_datasets/yolov12n_eye_detection.pt
 create_datasets/original_videos_annotations/
 convert_annaotations_to_classefication.py
 hyp_imbalance.yaml
@@ -30,7 +30,7 @@ Video_MAE/outputs/**/wandb/
 
 yolo_approach/outputs/
 yolo_approach/outputs1/
-cls_best.pt
+#cls_best.pt
 model_final_Layers_trained8alpha1.5_3_classes/
 outputs_optical_flow/
 
