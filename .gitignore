@@ -14,6 +14,12 @@ output_3_classes/
 create_datasets/original_videos_annotations/
 convert_annaotations_to_classefication.py
 hyp_imbalance.yaml
+labels_yolo_predicted/ 
+labels_reviewed/
+Done_labels/
+yolo_labels_first_priority/
+old_codefiles/
+old_files/
 
 
 # In Video_MAE/outputs, ignore big / generated files, but allow images
