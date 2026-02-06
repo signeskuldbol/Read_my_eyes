@@ -2,6 +2,9 @@ import json
 from pathlib import Path
 import cv2 as cv
 
+# NOTE: soome of the videos are fully checked others only partially. 
+# 2_2 has a horse in the background obs!!!
+
 # ---------------- CONFIG ----------------
 WORKSPACE_ROOT = Path(__file__).parent.parent.parent.resolve()
 JSON_IN_DIR  = WORKSPACE_ROOT / "yolo_approach" / "yolo_labels_first_priority"      #"labels_yolo_predicted"
@@ -20,6 +23,44 @@ FONT = cv.FONT_HERSHEY_SIMPLEX
 AUTOSAVE_EVERY_CHANGES = 300
 speed = 0.5  # 0.5 half speed, 1.0 normal, 2.0 double
 # --------------------------------------
+def select_roi_scaled_xyxy(frame, max_w=2500, max_h=1500):
+    """
+    Select ROI on a scaled-down view so it fits on screen.
+    Returns bbox as [x1, y1, x2, y2] in ORIGINAL frame coordinates.
+    """
+    H, W = frame.shape[:2]
+    scale = min(max_w / W, max_h / H, 1.0)
+
+    if scale < 1.0:
+        small = cv.resize(frame, (int(W * scale), int(H * scale)), interpolation=cv.INTER_AREA)
+    else:
+        small = frame
+
+    win = "Select BBox (scaled) (ENTER=OK, ESC=cancel)"
+    roi = cv.selectROI(win, small, fromCenter=False, showCrosshair=True)
+    cv.destroyWindow(win)
+
+    x, y, w, h = roi
+    if w <= 0 or h <= 0:
+        return None
+
+    inv = 1.0 / scale
+    x1 = int(x * inv)
+    y1 = int(y * inv)
+    x2 = int((x + w) * inv)
+    y2 = int((y + h) * inv)
+
+    # Clamp to image bounds
+    x1 = clamp(x1, 0, W - 1)
+    x2 = clamp(x2, 0, W - 1)
+    y1 = clamp(y1, 0, H - 1)
+    y2 = clamp(y2, 0, H - 1)
+
+    # Ensure proper ordering
+    if x2 < x1: x1, x2 = x2, x1
+    if y2 < y1: y1, y2 = y2, y1
+
+    return [x1, y1, x2, y2]
 
 
 def load_json(p: Path) -> dict:
@@ -283,56 +324,59 @@ def main():
             # B: edit selected bbox (or add if none)
             if key in (ord("b"), ord("B")):
                 playing = False
-                roi = cv.selectROI("Edit BBox (ENTER=OK, ESC=cancel)", frame, fromCenter=False, showCrosshair=True)
-                cv.destroyWindow("Edit BBox (ENTER=OK, ESC=cancel)")
-                x, y, w, h = roi
-                if w > 0 and h > 0:
-                    if dets:
-                        # keep current label
-                        old_cid = int(dets[selected_idx].get("class_id", 0))
-                        old_name = dets[selected_idx].get("class_name", CLASS_NAMES[old_cid])
-                    else:
-                        old_cid, old_name = 0, CLASS_NAMES[0]
+                xyxy = select_roi_scaled_xyxy(frame, max_w=1600, max_h=900)
+                if xyxy is None:
+                    continue
 
-                    edited = {
-                        "bbox": [int(x), int(y), int(x + w), int(y + h)],
-                        "class_id": old_cid,
-                        "class_name": old_name,
-                        "checked": True
-                    }
+                if dets:
+                    old_cid = int(dets[selected_idx].get("class_id", 0))
+                    old_name = dets[selected_idx].get("class_name", CLASS_NAMES[old_cid])
+                else:
+                    old_cid, old_name = 0, CLASS_NAMES[0]
 
-                    if dets:
-                        dets[selected_idx] = edited
-                    else:
-                        dets = [edited]
-                        selected_idx = 0
+                edited = {
+                    "bbox": xyxy,  # SAME FORMAT: [x1, y1, x2, y2]
+                    "class_id": old_cid,
+                    "class_name": old_name,
+                    "checked": True
+                }
 
-                    rec["detections"] = dets
-                    rec["checked"] = True
-                    dirty = True
-                    changes += 1
+                if dets:
+                    dets[selected_idx] = edited
+                else:
+                    dets = [edited]
+                    selected_idx = 0
+
+                rec["detections"] = dets
+                rec["checked"] = True
+                dirty = True
+                changes += 1
                 continue
+
 
             # N: add bbox (append)
             if key in (ord("n"), ord("N")):
                 playing = False
-                roi = cv.selectROI("Add BBox (ENTER=OK, ESC=cancel)", frame, fromCenter=False, showCrosshair=True)
-                cv.destroyWindow("Add BBox (ENTER=OK, ESC=cancel)")
-                x, y, w, h = roi
-                if w > 0 and h > 0:
-                    new_det = {
-                        "bbox": [int(x), int(y), int(x + w), int(y + h)],
-                        "class_id": 0,
-                        "class_name": CLASS_NAMES[0],
-                        "checked": True
-                    }
-                    dets.append(new_det)
-                    rec["detections"] = dets
-                    rec["checked"] = True
-                    dirty = True
-                    changes += 1
-                    selected_idx = len(dets) - 1  # select the newly added box
+                xyxy = select_roi_scaled_xyxy(frame, max_w=1600, max_h=900)
+                if xyxy is None:
+                    continue
+
+                new_det = {
+                    "bbox": xyxy,  # SAME FORMAT: [x1, y1, x2, y2]
+                    "class_id": 0,
+                    "class_name": CLASS_NAMES[0],
+                    "checked": True
+                }
+                dets.append(new_det)
+
+                rec["detections"] = dets
+                rec["checked"] = True
+                dirty = True
+                changes += 1
+                selected_idx = len(dets) - 1
                 continue
+
+
 
         cap.release()
 
