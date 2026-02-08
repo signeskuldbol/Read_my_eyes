@@ -2,13 +2,29 @@ import json
 from pathlib import Path
 import cv2 as cv
 
-# NOTE: soome of the videos are fully checked others only partially. 
-# 2_2 has a horse in the background obs!!!
+"""
+Use this to do human review of YOLO detection results stored in JSON files.
+Allows playing/pausing video, stepping frame-by-frame, selecting boxes, setting classes, adding/removing boxes, and saving changes.
+Edits are saved to a separate output JSON directory, so original predictions are preserved.
+Controls:
+    Space: play/pause
+    A/D: step back/forward 1 frame
+    J/L: step back/forward 30 frames
+    TAB: cycle selected box
+    0/1/2: set class of selected box
+    B: edit selected box (or add if none)
+    N: add new box
+    Y: delete selected box
+    S: save changes (otherwise changes are autosaved every N changes)
+    Q: next video
+    X: stop all
+
+"""
 
 # ---------------- CONFIG ----------------
 WORKSPACE_ROOT = Path(__file__).parent.parent.parent.resolve()
 JSON_IN_DIR  = WORKSPACE_ROOT / "yolo_approach" / "yolo_labels_first_priority"      #"labels_yolo_predicted"
-JSON_OUT_DIR = WORKSPACE_ROOT / "yolo_approach" / "labels_reviewed"
+JSON_OUT_DIR = WORKSPACE_ROOT / "yolo_approach" / "labels_Review_blink_only"
 JSON_OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 CLASS_NAMES = ["eye", "eye_half_blink", "eye_full_blink"]
@@ -21,7 +37,7 @@ WINDOW_NAME = (
 FONT = cv.FONT_HERSHEY_SIMPLEX
 
 AUTOSAVE_EVERY_CHANGES = 300
-speed = 0.5  # 0.5 half speed, 1.0 normal, 2.0 double
+speed = 1  # 0.5 half speed, 1.0 normal, 2.0 double
 # --------------------------------------
 def select_roi_scaled_xyxy(frame, max_w=2500, max_h=1500):
     """
