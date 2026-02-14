@@ -3,47 +3,73 @@ from pathlib import Path
 import cv2 as cv
 
 """
-Use this to do human review of YOLO detection results stored in JSON files.
-Allows playing/pausing video, stepping frame-by-frame, selecting boxes, setting classes, adding/removing boxes, and saving changes.
-Edits are saved to a separate output JSON directory, so original predictions are preserved.
+Filtered YOLO review tool for correcting inconsistent HALF blink annotations.
+This version EDITS THE ORIGINAL REVIEW JSONS IN-PLACE (overwrites them).
+NO backups are made.
+
+Modes:
+- HALF_ONLY: show ONLY frames that contain at least one half-blink detection (class_id==1)
+- TWO_BBOX:  show ONLY frames that contain exactly 2 detections (any classes)
+
 Controls:
-    Space: play/pause
-    A/D: step back/forward 1 frame
-    J/L: step back/forward 30 frames
+    Space: play/pause (plays through FILTERED frames only)
+    A/D: step back/forward 1 filtered frame
+    J/L: step back/forward 30 filtered frames
     TAB: cycle selected box
     0/1/2: set class of selected box
     B: edit selected box (or add if none)
     N: add new box
     Y: delete selected box
-    S: save changes (otherwise changes are autosaved every N changes)
+    S: save changes
     Q: next video
     X: stop all
-
 """
 
 # ---------------- CONFIG ----------------
 WORKSPACE_ROOT = Path(__file__).parent.parent.parent.resolve()
-JSON_IN_DIR  = WORKSPACE_ROOT / "yolo_approach" / "yolo_labeling" / "yolo_labels_first_priority"      #"labels_yolo_predicted"
-JSON_OUT_DIR = WORKSPACE_ROOT / "yolo_approach" / "yolo_labeling" / "labels_extra_blink_only_2"
-JSON_OUT_DIR.mkdir(parents=True, exist_ok=True)
+
+# Folder with reviewed JSONs (these will be overwritten!)
+JSON_DIR = WORKSPACE_ROOT / "yolo_approach" / "yolo_labeling" / "labels_extra_blink_only "
 
 CLASS_NAMES = ["eye", "eye_half_blink", "eye_full_blink"]
 
+# Choose one:
+MODE = "HALF_ONLY"   # "HALF_ONLY" or "TWO_BBOX"
+HALF_CLASS_ID = 1
+
 WINDOW_NAME = (
-    "Review (Space=play/pause, A/D step, J/L ±30, TAB select box, "
-    "0/1/2 set class, B edit selected box, N add box, Y delete selected box, "
-    "S save, Q next video, X stop all)"
+    "Filtered Review (Space play/pause, A/D step, J/L ±30, TAB select box, "
+    "0/1/2 set class, B edit/add, N add, Y delete, S save, Q next video, X stop all)"
 )
 FONT = cv.FONT_HERSHEY_SIMPLEX
 
-AUTOSAVE_EVERY_CHANGES = 300
-speed = 1  # 0.5 half speed, 1.0 normal, 2.0 double
+AUTOSAVE_EVERY_CHANGES = 200
+speed = 1.0
 # --------------------------------------
+
+
+def clamp(v, lo, hi):
+    return max(lo, min(hi, v))
+
+def load_json(p: Path) -> dict:
+    return json.loads(p.read_text(encoding="utf-8"))
+
+def save_json(p: Path, obj: dict) -> None:
+    p.write_text(json.dumps(obj, indent=2), encoding="utf-8")
+
+def draw_label(img, text, x, y):
+    cv.putText(img, text, (x, y), FONT, 0.7, (0, 0, 0), 3, cv.LINE_AA)
+    cv.putText(img, text, (x, y), FONT, 0.7, (255, 255, 255), 1, cv.LINE_AA)
+
+def step_to(cap: cv.VideoCapture, frame_idx: int):
+    cap.set(cv.CAP_PROP_POS_FRAMES, frame_idx)
+
+def get_frame(cap: cv.VideoCapture, frame_idx: int):
+    step_to(cap, frame_idx)
+    ok, fr = cap.read()
+    return ok, fr
+
 def select_roi_scaled_xyxy(frame, max_w=2500, max_h=1500):
-    """
-    Select ROI on a scaled-down view so it fits on screen.
-    Returns bbox as [x1, y1, x2, y2] in ORIGINAL frame coordinates.
-    """
     H, W = frame.shape[:2]
     scale = min(max_w / W, max_h / H, 1.0)
 
@@ -66,65 +92,49 @@ def select_roi_scaled_xyxy(frame, max_w=2500, max_h=1500):
     x2 = int((x + w) * inv)
     y2 = int((y + h) * inv)
 
-    # Clamp to image bounds
     x1 = clamp(x1, 0, W - 1)
     x2 = clamp(x2, 0, W - 1)
     y1 = clamp(y1, 0, H - 1)
     y2 = clamp(y2, 0, H - 1)
 
-    # Ensure proper ordering
     if x2 < x1: x1, x2 = x2, x1
     if y2 < y1: y1, y2 = y2, y1
 
     return [x1, y1, x2, y2]
 
-
-def load_json(p: Path) -> dict:
-    return json.loads(p.read_text(encoding="utf-8"))
-
-
-def save_json(p: Path, obj: dict) -> None:
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(obj, indent=2), encoding="utf-8")
-
-
-def clamp(v, lo, hi):
-    return max(lo, min(hi, v))
-
-
-def draw_label(img, text, x, y):
-    cv.putText(img, text, (x, y), FONT, 0.7, (0, 0, 0), 3, cv.LINE_AA)
-    cv.putText(img, text, (x, y), FONT, 0.7, (255, 255, 255), 1, cv.LINE_AA)
-
-
-def step_to(cap: cv.VideoCapture, frame_idx: int):
-    cap.set(cv.CAP_PROP_POS_FRAMES, frame_idx)
-
-
-def get_frame(cap: cv.VideoCapture, frame_idx: int):
-    step_to(cap, frame_idx)
-    ok, fr = cap.read()
-    return ok, fr
-
-
-def load_for_resume(in_json: Path, out_json: Path) -> tuple[dict, Path]:
-    """If reviewed exists, resume from it; else start from predicted."""
-    if out_json.exists():
-        return load_json(out_json), out_json
-    return load_json(in_json), in_json
-
-
-def mark_last_frame(data: dict, cur: int):
+def mark_progress(data: dict, video_frame_idx: int, filtered_pos: int, filtered_len: int, mode: str):
     data.setdefault("review_meta", {})
-    data["review_meta"]["last_frame"] = int(cur)
     data["review_meta"]["reviewed"] = True
+    data["review_meta"]["mode"] = mode
+    data["review_meta"]["last_frame"] = int(video_frame_idx)
+    data["review_meta"]["filtered_pos"] = int(filtered_pos)
+    data["review_meta"]["filtered_len"] = int(filtered_len)
 
+def build_filtered_indices(frames: list, mode: str) -> list[int]:
+    idxs = []
+    for i, rec in enumerate(frames):
+        dets = rec.get("detections", []) or []
+        if mode == "HALF_ONLY":
+            if any(int(d.get("class_id", -1)) == HALF_CLASS_ID for d in dets):
+                idxs.append(i)
+        elif mode == "TWO_BBOX":
+            if len(dets) == 2:
+                idxs.append(i)
+        else:
+            raise ValueError(f"Unknown MODE: {mode}")
+    return idxs
+
+def color_for_class(cid: int):
+    if cid == 0: return (255, 0, 0)     # eye
+    if cid == 1: return (0, 255, 0)     # half
+    if cid == 2: return (0, 0, 255)     # full
+    return (200, 200, 200)
 
 def main():
     stop_all = False
-    json_files = sorted(JSON_IN_DIR.glob("*.json"))
+    json_files = sorted(JSON_DIR.glob("*.json"))
     if not json_files:
-        print(f"[ERROR] No JSON files found in: {JSON_IN_DIR}")
+        print(f"[ERROR] No JSON files found in: {JSON_DIR}")
         return
 
     cv.namedWindow(WINDOW_NAME, cv.WINDOW_NORMAL)
@@ -133,10 +143,7 @@ def main():
         if stop_all:
             break
 
-        out_json = JSON_OUT_DIR / jf.name.replace(".json", "_reviewed.json")
-
-        # Resume: if reviewed exists, load it; otherwise load predicted
-        data, loaded_from = load_for_resume(jf, out_json)
+        data = load_json(jf)
 
         video_path = Path(data["meta"]["video"])
         if not video_path.exists():
@@ -159,53 +166,46 @@ def main():
             cap.release()
             continue
 
-        # Start from last_frame if present
-        cur = int(data.get("review_meta", {}).get("last_frame", 0))
-        cur = clamp(cur, 0, total - 1)
-        cap.set(cv.CAP_PROP_POS_FRAMES, cur)
+        frames = frames[:total]
 
-        selected_idx = 0  # selection per-frame (reset when frame changes)
+        # Build filtered list from current data (so edits affect what qualifies)
+        filtered = build_filtered_indices(frames, MODE)
+        if not filtered:
+            print(f"[SKIP] {jf.name}: no frames match filter ({MODE})")
+            cap.release()
+            continue
+
+        meta = data.get("review_meta", {})
+        start_pos = 0
+        if meta.get("mode") == MODE and "filtered_pos" in meta:
+            start_pos = int(meta.get("filtered_pos", 0))
+        start_pos = clamp(start_pos, 0, len(filtered) - 1)
+
+        pos = start_pos
+        cur = filtered[pos]
+
+        selected_idx = 0
         last_cur = None
 
-        print(f"\n[OPEN] {jf.name} ({video_path.name}) frames={total}")
-        if loaded_from == out_json:
-            print(f"  [RESUME] {out_json.name} starting at frame {cur}")
-        else:
-            print(f"  [NEW] {jf.name} starting at frame {cur}")
+        print(f"\n[OPEN] {jf.name} ({video_path.name}) total_frames={total} filtered_frames={len(filtered)} mode={MODE}")
+        print(f"  [START] filtered_pos {pos+1}/{len(filtered)} (frame {cur})")
 
         playing = True
         dirty = False
         changes = 0
 
         while True:
-            if playing:
-                ok, frame = cap.read()
-                if not ok:
-                    break
-                cur = int(cap.get(cv.CAP_PROP_POS_FRAMES)) - 1
-            else:
-                ok, frame = get_frame(cap, cur)
-                if not ok:
-                    break
-
-            if cur >= total:
+            ok, frame = get_frame(cap, cur)
+            if not ok:
                 break
 
-            # if frame changed, reset selection if needed
             if last_cur is None or cur != last_cur:
                 selected_idx = 0
                 last_cur = cur
 
             rec = frames[cur]
+            dets = rec.get("detections", []) or []
 
-            # Mark visited frame as checked
-            if not rec.get("checked", False):
-                rec["checked"] = True
-                dirty = True
-                changes += 1
-
-            dets = rec.get("detections", [])
-            # keep selected_idx valid
             if dets:
                 selected_idx = clamp(selected_idx, 0, len(dets) - 1)
             else:
@@ -213,7 +213,6 @@ def main():
 
             shown = frame.copy()
 
-            # draw detections (highlight selected)
             for i, d in enumerate(dets):
                 x1, y1, x2, y2 = d["bbox"]
                 cid = int(d.get("class_id", -1))
@@ -221,17 +220,14 @@ def main():
 
                 is_sel = (i == selected_idx)
                 thickness = 4 if is_sel else 2
-                color = (255, 255, 0) if rec.get("checked", False) else (0, 255, 0)
-                # make selected box a bit more obvious
-                if is_sel:
-                    color = (0, 255, 255)
+                color = (0, 255, 255) if is_sel else color_for_class(cid)
 
                 cv.rectangle(shown, (x1, y1), (x2, y2), color, thickness)
-                draw_label(shown, f"{cname}  #{i}" + (" [SEL]" if is_sel else ""), x1, max(25, y1 - 8))
+                draw_label(shown, f"{cname} #{i}" + (" [SEL]" if is_sel else ""), x1, max(25, y1 - 8))
 
             draw_label(
                 shown,
-                f"{video_path.name} frame {cur+1}/{total} play={playing} dirty={dirty} changes={changes} speed={speed:.2f}x",
+                f"{video_path.name} | mode={MODE} | filtered {pos+1}/{len(filtered)} | frame {cur+1}/{total} | play={playing} dirty={dirty} changes={changes} speed={speed:.2f}x",
                 10, 30
             )
             if dets:
@@ -241,33 +237,33 @@ def main():
 
             cv.imshow(WINDOW_NAME, shown)
 
-            # autosave occasionally
+            # autosave
             if dirty and changes > 0 and (changes % AUTOSAVE_EVERY_CHANGES == 0):
-                mark_last_frame(data, cur)
-                save_json(out_json, data)
+                mark_progress(data, cur, pos, len(filtered), MODE)
+                save_json(jf, data)
                 dirty = False
-                print(f"[AUTOSAVE] {out_json.name} (changes={changes}, last_frame={cur})")
+                print(f"[AUTOSAVE] {jf.name} (changes={changes}, filtered_pos={pos}, frame={cur})")
 
             fps2 = fps if fps and fps > 1e-6 else 25.0
             delay = int(1000 / (fps2 * speed)) if playing else 0
             delay = max(1, delay) if playing else 0
             key = cv.waitKey(delay) & 0xFFFFFFFF
 
-            # STOP EVERYTHING (X)
+            # STOP EVERYTHING
             if key in (ord("x"), ord("X")):
                 if dirty:
-                    mark_last_frame(data, cur)
-                    save_json(out_json, data)
-                    print(f"[SAVE] {out_json.name} (stop all)")
+                    mark_progress(data, cur, pos, len(filtered), MODE)
+                    save_json(jf, data)
+                    print(f"[SAVE] {jf.name} (stop all)")
                 stop_all = True
                 break
 
-            # quit current video (q or esc) -> save and move to next
+            # next video
             if key in (ord("q"), 27):
                 if dirty:
-                    mark_last_frame(data, cur)
-                    save_json(out_json, data)
-                    print(f"[SAVE] {out_json.name} (next video)")
+                    mark_progress(data, cur, pos, len(filtered), MODE)
+                    save_json(jf, data)
+                    print(f"[SAVE] {jf.name} (next video)")
                 break
 
             # play/pause
@@ -277,37 +273,49 @@ def main():
 
             # manual save
             if key in (ord("s"), ord("S")):
-                mark_last_frame(data, cur)
-                save_json(out_json, data)
+                mark_progress(data, cur, pos, len(filtered), MODE)
+                save_json(jf, data)
                 dirty = False
-                print(f"[SAVE] {out_json.name} (manual)")
+                print(f"[SAVE] {jf.name} (manual)")
                 continue
 
-            # TAB: cycle selected bbox
-            if key == 9:  # TAB
+            # TAB cycle selected
+            if key == 9:
                 if dets:
                     selected_idx = (selected_idx + 1) % len(dets)
                 continue
 
-            # step controls
+            # stepping within filtered list
             if key in (ord("a"), ord("A")):
                 playing = False
-                cur = clamp(cur - 1, 0, total - 1)
+                pos = clamp(pos - 1, 0, len(filtered) - 1)
+                cur = filtered[pos]
                 continue
             if key in (ord("d"), ord("D")):
                 playing = False
-                cur = clamp(cur + 1, 0, total - 1)
+                pos = clamp(pos + 1, 0, len(filtered) - 1)
+                cur = filtered[pos]
                 continue
             if key in (ord("j"), ord("J")):
                 playing = False
-                cur = clamp(cur - 30, 0, total - 1)
+                pos = clamp(pos - 30, 0, len(filtered) - 1)
+                cur = filtered[pos]
                 continue
             if key in (ord("l"), ord("L")):
                 playing = False
-                cur = clamp(cur + 30, 0, total - 1)
+                pos = clamp(pos + 30, 0, len(filtered) - 1)
+                cur = filtered[pos]
                 continue
 
-            # relabel (apply to selected bbox only)
+            # auto-advance while playing (within filtered frames)
+            if playing and key == 0xFFFFFFFF:
+                pos += 1
+                if pos >= len(filtered):
+                    break
+                cur = filtered[pos]
+                continue
+
+            # relabel selected bbox
             if key in (ord("0"), ord("1"), ord("2")):
                 if not dets:
                     continue
@@ -322,7 +330,7 @@ def main():
                 changes += 1
                 continue
 
-            # Y: delete selected bbox
+            # delete selected bbox
             if key in (ord("y"), ord("Y")):
                 if dets:
                     dets.pop(selected_idx)
@@ -337,7 +345,7 @@ def main():
                     changes += 1
                 continue
 
-            # B: edit selected bbox (or add if none)
+            # edit selected bbox (or add if none)
             if key in (ord("b"), ord("B")):
                 playing = False
                 xyxy = select_roi_scaled_xyxy(frame, max_w=1600, max_h=900)
@@ -350,12 +358,7 @@ def main():
                 else:
                     old_cid, old_name = 0, CLASS_NAMES[0]
 
-                edited = {
-                    "bbox": xyxy,  # SAME FORMAT: [x1, y1, x2, y2]
-                    "class_id": old_cid,
-                    "class_name": old_name,
-                    "checked": True
-                }
+                edited = {"bbox": xyxy, "class_id": old_cid, "class_name": old_name, "checked": True}
 
                 if dets:
                     dets[selected_idx] = edited
@@ -369,20 +372,14 @@ def main():
                 changes += 1
                 continue
 
-
-            # N: add bbox (append)
+            # N: add bbox
             if key in (ord("n"), ord("N")):
                 playing = False
                 xyxy = select_roi_scaled_xyxy(frame, max_w=1600, max_h=900)
                 if xyxy is None:
                     continue
 
-                new_det = {
-                    "bbox": xyxy,  # SAME FORMAT: [x1, y1, x2, y2]
-                    "class_id": 0,
-                    "class_name": CLASS_NAMES[0],
-                    "checked": True
-                }
+                new_det = {"bbox": xyxy, "class_id": 0, "class_name": CLASS_NAMES[0], "checked": True}
                 dets.append(new_det)
 
                 rec["detections"] = dets
@@ -392,17 +389,15 @@ def main():
                 selected_idx = len(dets) - 1
                 continue
 
-
-
         cap.release()
 
         if dirty:
-            mark_last_frame(data, cur)
-            save_json(out_json, data)
-            print(f"[SAVE] {out_json.name} (end of video)")
+            mark_progress(data, cur, pos, len(filtered), MODE)
+            save_json(jf, data)
+            print(f"[SAVE] {jf.name} (end of video)")
 
     cv.destroyAllWindows()
-    print("[DONE] Finished reviewing all JSONs.")
+    print("[DONE] Finished filtered review.")
 
 
 if __name__ == "__main__":

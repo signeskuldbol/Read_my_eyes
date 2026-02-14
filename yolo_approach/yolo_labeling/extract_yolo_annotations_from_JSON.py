@@ -18,21 +18,24 @@ As only blink frames are checked!!
 WORKSPACE_ROOT = Path(__file__).parent.parent.parent.resolve()
 
 # MAIN reviewed JSONs (eligible for cross-val validation)
-MAIN_JSON_DIR = WORKSPACE_ROOT / "yolo_approach" / "labels_reviewed"
+MAIN_JSON_DIR = WORKSPACE_ROOT / "yolo_approach" / "yolo_labeling" / "labels_reviewed_2"
 
 # EXTRA JSONs (train-only; ONLY keep blink classes 1/2 from these)
-EXTRA_BLINK_ONLY_JSON_DIR = WORKSPACE_ROOT / "yolo_approach" / "labels_extra_blink_only"
+EXTRA_BLINK_ONLY_JSON_DIR = WORKSPACE_ROOT / "yolo_approach" / "yolo_labeling" / "labels_extra_blink_only_2"
 # If you don't want extra: set to None
 # EXTRA_BLINK_ONLY_JSON_DIR = None
 
 # Output dataset root
-OUT_ROOT = WORKSPACE_ROOT / "yolo_approach" / "dataset"
+OUT_ROOT = WORKSPACE_ROOT / "yolo_approach" / "dataset_v2_eye_frames_downsampled"
 
 CLASS_NAMES = ["eye", "eye_half_blink", "eye_full_blink"]
 
 # Keep classes per source:
 MAIN_KEEP_CLASS_IDS = None      # None = keep all 3 classes
 EXTRA_KEEP_CLASS_IDS = {1, 2}   # keep only blink classes from extra folder
+
+# Downsample pure-eye frames (class 0 only) by 2x
+HALVE_PURE_EYE_FRAMES = True  
 
 RANDOM_SEED = 42
 
@@ -91,7 +94,13 @@ def write_txt_list(path: Path, image_paths):
     path.write_text("\n".join(str(p) for p in image_paths) + ("\n" if image_paths else ""), encoding="utf-8")
 
 
-def collect_checked_frames(json_dir: Path, keep_class_ids, tag: str, require_kept_box: bool = False):
+def collect_checked_frames(
+    json_dir: Path,
+    keep_class_ids,
+    tag: str,
+    require_kept_box: bool = False,
+    halve_pure_eye_frames: bool = False,
+        ):
     """
     Returns:
       per_video: dict video_key -> dict frame_idx -> list[detections_kept]
@@ -104,6 +113,8 @@ def collect_checked_frames(json_dir: Path, keep_class_ids, tag: str, require_kep
     """
     per_video = {}
     video_paths = {}
+    pure_eye_seen = 0 # for downsampling
+
 
     if json_dir is None:
         return per_video, video_paths
@@ -142,9 +153,16 @@ def collect_checked_frames(json_dir: Path, keep_class_ids, tag: str, require_kep
                     continue
                 kept.append(d)
 
-            # NEW: only keep this frame if it has at least one kept box
+            # only keep this frame if it has at least one kept box
             if require_kept_box and len(kept) == 0:
                 continue
+
+            if halve_pure_eye_frames:
+                if len(kept) > 0 and all(int(d.get("class_id", -1)) == 0 for d in kept):
+                    if pure_eye_seen % 2 == 1:
+                        pure_eye_seen += 1
+                        continue
+                    pure_eye_seen += 1
 
             per_video.setdefault(video_key, {})[idx] = kept
 
@@ -221,7 +239,7 @@ def main():
 
     # 1) Collect data per source with different class-keeping rules
     per_main, paths_main = collect_checked_frames(
-        MAIN_JSON_DIR, MAIN_KEEP_CLASS_IDS, tag="MAIN(all-classes)", require_kept_box=False
+        MAIN_JSON_DIR, MAIN_KEEP_CLASS_IDS, tag="MAIN(all-classes)", require_kept_box=False, halve_pure_eye_frames=HALVE_PURE_EYE_FRAMES
     )
 
     per_extra, paths_extra = collect_checked_frames(

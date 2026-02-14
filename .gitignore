@@ -3,7 +3,6 @@ __pycache__/
 *.py[codz]
 *$py.class
 
-demo_from_huggingface/
 videomae-ucf101-subset/
 datasets/
 annotations/
@@ -11,17 +10,24 @@ yolo12n.pt
 output_3_classes/
 #create_datasets/yolov8l_horse_face_detection.pt
 #create_datasets/yolov12n_eye_detection.pt
+
 create_datasets/original_videos_annotations/
 convert_annaotations_to_classefication.py
 hyp_imbalance.yaml
 labels_yolo_predicted/ 
 labels_reviewed/
+labels_reviewed_2/
 Done_labels/
-dataset/
+dataset_all/
+dataset_half_first_iteration/
+dataset_v2_eye_frames_downsampled/
+dataset_blink_only/
 yolo_labels_first_priority/
 labels_extra_blink_only/
+labels_extra_blink_only_2/
 old_codefiles/
 old_files/
+pred_videos/
 
 
 # In Video_MAE/outputs, ignore big / generated files, but allow images

@@ -3,20 +3,8 @@ from ultralytics import YOLO
 from ultralytics.utils import SETTINGS
 from pathlib import Path
 
-"""
-Current Distrubution in data:
-=== YOLO INSTANCE COUNTS ===
-eye             : 19494
-eye_half_blink  : 3693
-eye_full_blink  : 833
-
-=== IMAGE STATS ===
-Total images:        23248
-Images with no boxes:677
-Images with boxes:   22571
-"""
 # ===================== CONFIG =====================
-USE_CROSS_VALIDATION = True     # True = train ALL folds automatically, False = final train on all data
+USE_CROSS_VALIDATION = False     # True = train ALL folds automatically, False = final train on all data
 
 # Training hyperparams
 
@@ -25,16 +13,16 @@ if USE_CROSS_VALIDATION:
     PATIENCE = 20  # early stopping patience (epochs with no improvement after best epoch)
     IMGSZ = 640  # smaller for faster training on folds
 else:
-    EPOCHS = 100 # decrese if training continues after performance stops improving. 
+    EPOCHS = 150 # decrese if training continues after performance stops improving. 
     PATIENCE = 10  # not used without validation, but set it anyway
     IMGSZ = 896  # larger for final train on all data
-BATCH = 24 # adjust based on GPU memory.
+BATCH = 12 # adjust based on GPU memory.
 DEVICE = 0 # 0 = first GPU,
-WORKERS = 8 # lower if error (linux run can be higher than windows)
+WORKERS = 3 # lower if error (linux run can be higher than windows)
 
 # Augmentations
 FLIPLR = 0.5 # horizontal flip probability (not all images are perfectly centered, so this can help generalization.
-MIXUP = 0.1 # good for to avoid overfitting to easy examples! 
+#MIXUP = 0.1 # good for to avoid overfitting to easy examples! 
 
 TRANSLATE = 0.1 # avoids learning positional bias. 0.1 = up to 10% of size shift in x and y direction.
 DEGREES = 3 # small rotation can help generalization, but too much can make it unrealistic. 
@@ -42,9 +30,8 @@ SCALE = 0.2 # learn different sizes of eyes.
 # HSV is already applied by default in YOLOv12, so we can skip it here.
 
 JOB_WORKSPACE_ROOT = Path(__file__).parent.parent.parent.resolve()
-print(f"[INFO] JOB_WORKSPACE_ROOT: {JOB_WORKSPACE_ROOT}")
-PROJECT = JOB_WORKSPACE_ROOT / "yolo" / "runs" / "blink_detection" # where to save training runs (models, logs, etc.)
-BASE_NAME = "y12n_3class"
+PROJECT = JOB_WORKSPACE_ROOT / "yolo_models" / "v2_eyes_halved" # where to save training runs (models, logs, etc.)
+BASE_NAME = "eye_detection_v2_halved" # base name for training runs; fold number or "final_all" will be appended to this.
 MODEL_WEIGHTS = "yolo12n.pt"
 # ==================================================
 
@@ -75,13 +62,16 @@ def train_one(model: YOLO, data_yaml: Path, run_name: str):
         imgsz=IMGSZ,
         batch=BATCH,
         device=DEVICE,
+        save_json=True, # save training results to json file for easy parsing later
+        plots=True, # save training curves (loss, metrics) as images
         workers=WORKERS,
         project=PROJECT,
         name=run_name,
+        val=USE_CROSS_VALIDATION,
 
         # augmentations
         fliplr=FLIPLR,
-        mixup=MIXUP,
+        #mixup=MIXUP,
         translate=TRANSLATE,
         degrees=DEGREES,
         scale=SCALE,
@@ -90,11 +80,10 @@ def train_one(model: YOLO, data_yaml: Path, run_name: str):
 
 def main():
     READ_EYE_DIR = Path(__file__).parent.parent.resolve()
-    print(f"[INFO] READ_EYE workspace root: {READ_EYE_DIR}")
 
-    dataset_root = READ_EYE_DIR / "yolo_approach" / "dataset"
+    dataset_root = READ_EYE_DIR / "yolo_approach" / "dataset_half"
     folds_root = dataset_root / "folds"
-    final_data_yaml = dataset_root / "dataset_all.yaml"
+    final_data_yaml = dataset_root / "dataset.yaml"
 
     SETTINGS.update({"datasets_dir": str(dataset_root)})
 
