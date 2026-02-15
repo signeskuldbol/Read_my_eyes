@@ -1,4 +1,5 @@
 # ===================== CONFIG =====================
+from xml.parsers.expat import model
 from ultralytics import YOLO
 from ultralytics.utils import SETTINGS
 from pathlib import Path
@@ -7,7 +8,6 @@ from pathlib import Path
 USE_CROSS_VALIDATION = False     # True = train ALL folds automatically, False = final train on all data
 
 # Training hyperparams
-
 if USE_CROSS_VALIDATION:
     EPOCHS = 100 # decrese if training continues after performance stops improving. 
     PATIENCE = 20  # early stopping patience (epochs with no improvement after best epoch)
@@ -22,7 +22,7 @@ WORKERS = 3 # lower if error (linux run can be higher than windows)
 
 # Augmentations
 FLIPLR = 0.5 # horizontal flip probability (not all images are perfectly centered, so this can help generalization.
-#MIXUP = 0.1 # good for to avoid overfitting to easy examples! 
+MIXUP = 0 # good for to avoid overfitting to easy examples! 
 
 TRANSLATE = 0.1 # avoids learning positional bias. 0.1 = up to 10% of size shift in x and y direction.
 DEGREES = 3 # small rotation can help generalization, but too much can make it unrealistic. 
@@ -30,9 +30,16 @@ SCALE = 0.2 # learn different sizes of eyes.
 # HSV is already applied by default in YOLOv12, so we can skip it here.
 
 JOB_WORKSPACE_ROOT = Path(__file__).parent.parent.parent.resolve()
-PROJECT = JOB_WORKSPACE_ROOT / "yolo_models" / "v2_eyes_halved" # where to save training runs (models, logs, etc.)
+PROJECT = JOB_WORKSPACE_ROOT / "yolo_models" / "v2_eyes_halved_try_2" # where to save training runs (models, logs, etc.)
 BASE_NAME = "eye_detection_v2_halved" # base name for training runs; fold number or "final_all" will be appended to this.
 MODEL_WEIGHTS = "yolo12n.pt"
+READ_EYE_DIR = Path(__file__).parent.parent.resolve()
+dataset_root = READ_EYE_DIR / "yolo_approach" / "dataset_v2_eye_frames_downsampled"
+folds_root = dataset_root / "folds"
+final_data_yaml = dataset_root / "dataset.yaml"
+
+RESUME = True  # set False if you want a fresh run
+LAST_PT = PROJECT / f"{BASE_NAME}_final_all" / "weights" / "last.pt"  # adjust run folder if needed
 # ==================================================
 
 
@@ -68,10 +75,11 @@ def train_one(model: YOLO, data_yaml: Path, run_name: str):
         project=PROJECT,
         name=run_name,
         val=USE_CROSS_VALIDATION,
+        ressume=RESUME,
 
         # augmentations
         fliplr=FLIPLR,
-        #mixup=MIXUP,
+        mixup=MIXUP,
         translate=TRANSLATE,
         degrees=DEGREES,
         scale=SCALE,
@@ -79,12 +87,6 @@ def train_one(model: YOLO, data_yaml: Path, run_name: str):
 
 
 def main():
-    READ_EYE_DIR = Path(__file__).parent.parent.resolve()
-
-    dataset_root = READ_EYE_DIR / "yolo_approach" / "dataset_half"
-    folds_root = dataset_root / "folds"
-    final_data_yaml = dataset_root / "dataset.yaml"
-
     SETTINGS.update({"datasets_dir": str(dataset_root)})
 
     if USE_CROSS_VALIDATION:
@@ -115,8 +117,8 @@ def main():
                 f"    2: eye_full_blink\n"
             )
 
-        model = YOLO(MODEL_WEIGHTS)
-        train_one(model, final_data_yaml, f"{BASE_NAME}_final_all")
+        model = YOLO(str(LAST_PT)) if RESUME else YOLO(MODEL_WEIGHTS)
+        train_one(model, final_data_yaml, f"{BASE_NAME}_final_all", resume=RESUME)
         print("\n[DONE] Finished final training.")
 
 

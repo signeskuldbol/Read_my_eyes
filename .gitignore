@@ -19,7 +19,7 @@ labels_reviewed/
 labels_reviewed_2/
 Done_labels/
 dataset_all/
-dataset_half_first_iteration/
+dataset_half_v1/
 dataset_v2_eye_frames_downsampled/
 dataset_blink_only/
 yolo_labels_first_priority/
@@ -27,7 +27,11 @@ labels_extra_blink_only/
 labels_extra_blink_only_2/
 old_codefiles/
 old_files/
-pred_videos/
+pred_videos_v1/
+pred_videos_v2/
+# OPtical FLOW
+**/optical_flow_old_for_videos.py
+
 
 
 # In Video_MAE/outputs, ignore big / generated files, but allow images

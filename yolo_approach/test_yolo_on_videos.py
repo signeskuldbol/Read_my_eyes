@@ -154,9 +154,13 @@ def run_folder(
 
 
 if __name__ == "__main__":
-    model_path = r"C:\Users\signe\Job\yolo_half_100_epochs\runs\blink_detection\y12n_3class_final_all\weights\yolo_best_half_E_100.pt"
-    videos_dir = r"C:\Users\signe\Job\Read_my_eyes\create_datasets\original_videos_annotations\videos"
-    out_dir = r"C:\Users\signe\Job\Read_my_eyes\yolo_approach\pred_videos"
+    WORKSPACE_ROOT = Path(__file__).parent.parent.resolve()
+    INFO_VIDEOS_DIR = WORKSPACE_ROOT / "create_datasets" / "original_videos_annotations"
+    videos_dir = INFO_VIDEOS_DIR / "videos"
+    Workspace_Path = Path(__file__).parent.parent.parent.resolve()
+    model_path = Workspace_Path / "yolo_models" / "v2_eyes_halved" / "weights" / "best_v2_not_finished_E_129.pt"
+
+    out_dir = WORKSPACE_ROOT / "yolo_approach" / "pred_videos_v2"
 
     run_folder(
         model_path=model_path,

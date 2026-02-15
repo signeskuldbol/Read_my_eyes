@@ -21,6 +21,7 @@ Model rules:
 - Max 2 bbx are kept (most confident ones). done after overlap bbx are removed. 
 - All coherent blink frames are seen as the same label, with FULL dominating HALF if both exist in the same episode.
 - Class mapping: YOLO classes mapped to NONE/HALF/FULL as configured below, everything else => NONE
+- Padding: extra frames before/after a blink episode. if 2 episodes want the same padding frame, the episode with higher original mean confidence wins that frame.
 """
 
 # ---------------- CONFIG ----------------
@@ -30,11 +31,11 @@ INFO_VIDEOS_DIR = WORKSPACE_ROOT / "create_datasets" / "original_videos_annotati
 ANNOTATIONS_JSON = INFO_VIDEOS_DIR / "JSONAnnotations" / "annotations.json"
 VIDEOS_DIR = INFO_VIDEOS_DIR / "videos"
 
-OUT_DIR = WORKSPACE_ROOT / "yolo_approach" / "visualisation_videos_eval"
+OUT_DIR = WORKSPACE_ROOT / "yolo_approach" / "visualisation_videos_eval_v2"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # --- EDIT THIS ---
-WEIGHTS = WORKSPACE_ROOT.parent.resolve() / "yolo_half_100_epochs" /"runs"/ "blink_detection" / "y12n_3class_final_all" / "weights" / "yolo_best_half_E_100.pt"
+WEIGHTS = WORKSPACE_ROOT.parent.resolve() / "yolo_models" / "v2_eyes_halved" / "weights" / "best_v2_not_finished_E_129.pt"
 
 # YOLO infer settings
 CONF_THRES = 0.25
@@ -44,16 +45,18 @@ IMG_SIZE = 896
 # Never allow more than this many boxes per frame after all filtering
 MAX_BOXES_PER_FRAME = 2
 
+# PADDING IN FRAMES (NOT seconds)
+PADDIG_BEFORE_AFTER_BLINK_FRAMES = 3  # frames to expand predicted blink episodes on each side
+
 # Toggle: apply "connected episode FULL dominates" to PREDICTIONS only
-PROMOTE_CONNECTED_PREDS = True
-CONNECTED_GAP_FRAMES = 0  
+PROMOTE_CONNECTED_PREDS = True  # all labels become the same in an episode, with full dominating.
+CONNECTED_GAP_FRAMES = 0 # rule for when to connect episodes
 
 # --- EDIT THESE TO MATCH YOUR YOLO CLASSES ---
 YOLO_HALF_CLS = 1
 YOLO_FULL_CLS = 2
 
 SHOW = False
-
 
 # ---------------- Label encoding ----------------
 LBL_NONE = 0
@@ -86,8 +89,8 @@ def get_video_fps_and_frames(video_path: Path) -> Tuple[float, int]:
 
 def gt_events_to_frame_labels(events: List[dict], fps: float, nframes: int) -> np.ndarray:
     """
-    GT is NOT post-processed (no episode promotion).
-    If GT annotation overlaps exist, FULL overwrites HALF in those frames.
+    GT is NOT post-processed and is NOT padded.
+    If GT annotation overlaps exist, FULL overwrites HALF in those frames (as before).
     """
     y = np.zeros(nframes, dtype=np.uint8)
 
@@ -120,13 +123,97 @@ def gt_events_to_frame_labels(events: List[dict], fps: float, nframes: int) -> n
     return y
 
 
-# ---------------- YOLO mapping ----------------
-def yolo_cls_to_label(cls_idx: int) -> int:
-    if cls_idx == YOLO_HALF_CLS:
-        return LBL_HALF
-    if cls_idx == YOLO_FULL_CLS:
-        return LBL_FULL
-    return LBL_NONE  # eyes + everything else
+@dataclass
+class Episode:
+    cls: int          # LBL_HALF or LBL_FULL
+    s: int            # start frame (inclusive)
+    e: int            # end frame (exclusive)
+    mean_conf: float  # mean confidence over ORIGINAL (unpadded) episode
+
+
+def _runs_of_label(labels: np.ndarray, target: int) -> List[Tuple[int, int]]:
+    """Return runs [s,e) where labels == target."""
+    n = len(labels)
+    runs = []
+    i = 0
+    while i < n:
+        if labels[i] == target:
+            s = i
+            i += 1
+            while i < n and labels[i] == target:
+                i += 1
+            runs.append((s, i))
+        else:
+            i += 1
+    return runs
+
+
+def pad_pred_only_into_none_conflict_by_episode_mean(
+    pr: np.ndarray,
+    conf_half: np.ndarray,
+    conf_full: np.ndarray,
+    pad_frames: int
+) -> np.ndarray:
+    """
+    PRED-ONLY padding:
+    - Expand each predicted HALF/FULL episode by pad_frames on each side
+    - BUT ONLY write into frames that are currently NONE in the prediction
+      (i.e., do NOT overwrite already predicted blink frames).
+    - If a NONE frame is claimed by BOTH a HALF episode and a FULL episode padding:
+        pick the class whose ORIGINAL episode has the higher mean confidence.
+      Tie-breakers:
+        1) per-frame conf_full vs conf_half at that frame
+        2) if still tie -> leave as NONE
+    """
+    n = len(pr)
+    out = pr.copy()
+
+    none_mask = (pr == LBL_NONE)
+
+    half_runs = _runs_of_label(pr, LBL_HALF)
+    full_runs = _runs_of_label(pr, LBL_FULL)
+
+    # For each frame: best episode-mean confidence that proposes HALF/FULL padding here
+    best_half_score = np.full(n, -1.0, dtype=np.float32)
+    best_full_score = np.full(n, -1.0, dtype=np.float32)
+
+    # HALF proposals
+    for s, e in half_runs:
+        if e <= s:
+            continue
+        mc = float(np.mean(conf_half[s:e])) if np.any(conf_half[s:e] > 0) else 0.0
+        s2 = max(0, s - pad_frames)
+        e2 = min(n, e + pad_frames)
+        best_half_score[s2:e2] = np.maximum(best_half_score[s2:e2], mc)
+
+    # FULL proposals
+    for s, e in full_runs:
+        if e <= s:
+            continue
+        mc = float(np.mean(conf_full[s:e])) if np.any(conf_full[s:e] > 0) else 0.0
+        s2 = max(0, s - pad_frames)
+        e2 = min(n, e + pad_frames)
+        best_full_score[s2:e2] = np.maximum(best_full_score[s2:e2], mc)
+
+    want_half = none_mask & (best_half_score >= 0)
+    want_full = none_mask & (best_full_score >= 0)
+
+    # Non-conflict
+    out[want_half & ~want_full] = LBL_HALF
+    out[want_full & ~want_half] = LBL_FULL
+
+    # Conflict: both claim same NONE frame
+    both = want_half & want_full
+    if np.any(both):
+        out[both & (best_full_score > best_half_score)] = LBL_FULL
+        out[both & (best_half_score > best_full_score)] = LBL_HALF
+
+        tie = both & (best_full_score == best_half_score)
+        out[tie & (conf_full > conf_half)] = LBL_FULL
+        out[tie & (conf_half > conf_full)] = LBL_HALF
+        # still tied -> stay NONE
+
+    return out
 
 
 # ---------------- Overlap suppression + cap ----------------
@@ -153,8 +240,7 @@ def keep_only_nonoverlapping_most_conf(
     Step 1 (your rule): class-agnostic suppression:
       - sort by confidence desc
       - keep a box only if it has IoU == 0 with all kept boxes
-    Step 2 (new): cap total kept boxes to max_boxes (default=2),
-      keeping the max_boxes most confident among the kept set.
+    Step 2: cap total kept boxes to max_boxes, keeping most confident.
     """
     if len(boxes_xyxy) == 0:
         return boxes_xyxy, confs, clss
@@ -171,7 +257,6 @@ def keep_only_nonoverlapping_most_conf(
 
     kept = np.array(kept, dtype=int)
 
-    # CAP to max_boxes by confidence (kept is already in descending conf order, but re-apply to be safe)
     if len(kept) > max_boxes:
         kept_order = np.argsort(-confs[kept])
         kept = kept[kept_order[:max_boxes]]
@@ -181,6 +266,10 @@ def keep_only_nonoverlapping_most_conf(
 
 # ---------------- Connected episode promotion (pred only) ----------------
 def promote_connected_episodes(labels: np.ndarray, gap_frames: int = 1) -> np.ndarray:
+    """
+    If blink frames are connected (within gap_frames), treat them as one episode.
+    Within an episode: if any FULL exists, set whole episode to FULL else HALF.
+    """
     n = len(labels)
     out = labels.copy()
 
@@ -213,9 +302,18 @@ def promote_connected_episodes(labels: np.ndarray, gap_frames: int = 1) -> np.nd
     return out
 
 
-# ---------------- YOLO → per-frame labels ----------------
-def yolo_video_to_frame_labels(model: YOLO, video_path: Path, nframes: int) -> np.ndarray:
+def yolo_video_to_frame_labels(model: YOLO, video_path: Path, nframes: int) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Returns:
+      pred_lbls: (nframes,) label per frame (NONE/HALF/FULL)
+      conf_half: (nframes,) best HALF confidence in that frame after filtering (0 if none)
+      conf_full: (nframes,) best FULL confidence in that frame after filtering (0 if none)
+
+    Frame label rule here: if any FULL box remains -> FULL else if any HALF remains -> HALF else NONE.
+    """
     pred = np.zeros(nframes, dtype=np.uint8)
+    conf_half = np.zeros(nframes, dtype=np.float32)
+    conf_full = np.zeros(nframes, dtype=np.float32)
 
     results = model.predict(
         source=str(video_path),
@@ -243,28 +341,38 @@ def yolo_video_to_frame_labels(model: YOLO, video_path: Path, nframes: int) -> n
         if len(clss) == 0:
             continue
 
-        mapped = np.array([yolo_cls_to_label(int(c)) for c in clss], dtype=np.uint8)
+        best_half = 0.0
+        best_full = 0.0
+        for c, cf in zip(clss, confs):
+            if int(c) == YOLO_HALF_CLS:
+                best_half = max(best_half, float(cf))
+            elif int(c) == YOLO_FULL_CLS:
+                best_full = max(best_full, float(cf))
 
-        # If multiple remaining disjoint boxes: FULL dominates; else HALF; else NONE
-        if np.any(mapped == LBL_FULL):
+        conf_half[fi] = best_half
+        conf_full[fi] = best_full
+
+        if best_full > 0:
             pred[fi] = LBL_FULL
-        elif np.any(mapped == LBL_HALF):
+        elif best_half > 0:
             pred[fi] = LBL_HALF
         else:
             pred[fi] = LBL_NONE
 
-    return pred
+    return pred, conf_half, conf_full
 
 
 # ---------------- Metrics ----------------
 def safe_div(a: float, b: float) -> float:
     return float(a / b) if b != 0 else 0.0
 
+
 def compute_confusion_3x3(gt: np.ndarray, pr: np.ndarray) -> np.ndarray:
     cm = np.zeros((3, 3), dtype=int)
     for g, p in zip(gt, pr):
         cm[int(g), int(p)] += 1
     return cm
+
 
 def per_class_precision_recall_from_cm(cm: np.ndarray) -> Dict[str, Dict[str, float]]:
     labels = ["none", "half", "full"]
@@ -282,6 +390,7 @@ def per_class_precision_recall_from_cm(cm: np.ndarray) -> Dict[str, Dict[str, fl
     out["macro"] = {"precision": float(np.mean(precisions)), "recall": float(np.mean(recalls))}
     return out
 
+
 def blink_detection_precision_recall(gt: np.ndarray, pr: np.ndarray) -> Dict[str, float]:
     gt_b = (gt != LBL_NONE)
     pr_b = (pr != LBL_NONE)
@@ -296,21 +405,17 @@ def blink_detection_precision_recall(gt: np.ndarray, pr: np.ndarray) -> Dict[str
         "fn": fn,
     }
 
+
 def plot_confusion_matrix_3x3(
     cm: np.ndarray,
-    out_path_counts: Path,
     out_path_norm: Path,
     title_base: str,
     labels=("None", "Half", "Full"),
 ):
     """
-    Saves
-      Row-normalized (%), so you can read performance per GT class
+    Saves row-normalized (%) confusion matrix, so you can read performance per GT class.
     """
-
     cm = np.asarray(cm, dtype=float)
-
-    # ----------  Row-normalized (percent) ----------
     row_sums = cm.sum(axis=1, keepdims=True)
     cm_row = np.divide(cm, row_sums, out=np.zeros_like(cm), where=row_sums != 0)
 
@@ -327,17 +432,16 @@ def plot_confusion_matrix_3x3(
         for j in range(3):
             pct = cm_row[i, j] * 100.0
             cnt = int(cm[i, j])
-
-            # better contrast rule
             txt_color = "white" if cm_row[i, j] > 0.5 else "black"
-
-            ax.text(j, i,
-                    f"{pct:5.1f}%\n({cnt:,})",
-                    ha="center",
-                    va="center",
-                    color=txt_color,
-                    fontsize=9,
-                    fontweight="bold")
+            ax.text(
+                j, i,
+                f"{pct:5.1f}%\n({cnt:,})",
+                ha="center",
+                va="center",
+                color=txt_color,
+                fontsize=9,
+                fontweight="bold",
+            )
 
     cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
     cbar.set_label("Proportion within GT row")
@@ -368,6 +472,7 @@ def labels_to_segments(labels: np.ndarray, fps: float) -> Tuple[List[Tuple[float
     flush(run_lbl, run_s, n)
     return half, full
 
+
 def perf_segments(gt: np.ndarray, pr: np.ndarray, fps: float) -> Tuple[List[Tuple[float, float]], List[Tuple[float, float]]]:
     blink_any = (gt != LBL_NONE) | (pr != LBL_NONE)
     match = (gt == pr) & blink_any
@@ -392,6 +497,7 @@ def perf_segments(gt: np.ndarray, pr: np.ndarray, fps: float) -> Tuple[List[Tupl
 
     return mask_to_segments(match), mask_to_segments(mismatch)
 
+
 def plot_video_timeline_3rows(video_name: str, fps: float, gt: np.ndarray, pr: np.ndarray, out_path: Path):
     total_dur = len(gt) / fps
 
@@ -407,21 +513,21 @@ def plot_video_timeline_3rows(video_name: str, fps: float, gt: np.ndarray, pr: n
     y_gt, y_pr, y_pf = 2, 1, 0
     h = 0.6
 
-    ax.broken_barh(gt_half, (y_gt - h/2, h), facecolors="tab:orange", label="Half")
-    ax.broken_barh(gt_full, (y_gt - h/2, h), facecolors="tab:blue",   label="Full")
+    ax.broken_barh(gt_half, (y_gt - h / 2, h), facecolors="tab:orange", label="Half")
+    ax.broken_barh(gt_full, (y_gt - h / 2, h), facecolors="tab:blue", label="Full")
 
-    ax.broken_barh(pr_half, (y_pr - h/2, h), facecolors="tab:orange")
-    ax.broken_barh(pr_full, (y_pr - h/2, h), facecolors="tab:blue")
+    ax.broken_barh(pr_half, (y_pr - h / 2, h), facecolors="tab:orange")
+    ax.broken_barh(pr_full, (y_pr - h / 2, h), facecolors="tab:blue")
 
-    ax.broken_barh(ok_segs,  (y_pf - h/2, h), facecolors="tab:green", label="Match")
-    ax.broken_barh(bad_segs, (y_pf - h/2, h), facecolors="tab:red",   label="Mismatch")
+    ax.broken_barh(ok_segs, (y_pf - h / 2, h), facecolors="tab:green", label="Match")
+    ax.broken_barh(bad_segs, (y_pf - h / 2, h), facecolors="tab:red", label="Mismatch")
 
     ax.set_yticks([y_gt, y_pr, y_pf])
     ax.set_yticklabels(["GT", "Pred", "Perf"])
     ax.grid(True, axis="x", linestyle="--", alpha=0.4)
 
-    handles, labels = ax.get_legend_handles_labels()
-    by_label = dict(zip(labels, handles))
+    handles, labels_ = ax.get_legend_handles_labels()
+    by_label = dict(zip(labels_, handles))
     ax.legend(by_label.values(), by_label.keys(), loc="upper right", frameon=True)
 
     fig.tight_layout()
@@ -447,6 +553,7 @@ def main():
     model = YOLO(str(WEIGHTS))
     print(f"[INFO] model.names: {getattr(model, 'names', None)}")
     print(f"[INFO] HALF_CLS={YOLO_HALF_CLS}, FULL_CLS={YOLO_FULL_CLS}, MAX_BOXES_PER_FRAME={MAX_BOXES_PER_FRAME}")
+    print(f"[INFO] pad_frames={PADDIG_BEFORE_AFTER_BLINK_FRAMES} (PRED ONLY)")
     print(f"[INFO] Videos dir: {VIDEOS_DIR}")
     print(f"[INFO] Output dir: {OUT_DIR}")
 
@@ -467,27 +574,35 @@ def main():
 
         fps, nframes = get_video_fps_and_frames(video_path)
 
-        gt = gt_events_to_frame_labels(events, fps, nframes)  # GT untouched
-        pr = yolo_video_to_frame_labels(model, video_path, nframes)
+        # ----- GT is unchanged -----
+        gt = gt_events_to_frame_labels(events, fps, nframes)
 
-        if PROMOTE_CONNECTED_PREDS:
-            pr2 = promote_connected_episodes(pr, gap_frames=CONNECTED_GAP_FRAMES)
-        else:
-            pr2 = pr
+        pr_raw, conf_half, conf_full = yolo_video_to_frame_labels(model, video_path, nframes)
 
-        cm3 = compute_confusion_3x3(gt, pr2)
+        # ----- 1) Promotion FIRST (before padding) -----
+        pr_promoted = promote_connected_episodes(pr_raw, gap_frames=CONNECTED_GAP_FRAMES) \
+            if PROMOTE_CONNECTED_PREDS else pr_raw
+
+        # ----- 2) Padding AFTER promotion -----
+        pr_final = pad_pred_only_into_none_conflict_by_episode_mean(
+            pr_promoted,
+            conf_half,
+            conf_full,
+            pad_frames=int(PADDIG_BEFORE_AFTER_BLINK_FRAMES)
+        )
+
+
+        # Metrics + plots use GT unchanged and PRED padded(+promoted)
+        cm3 = compute_confusion_3x3(gt, pr_final)
         pr_stats = per_class_precision_recall_from_cm(cm3)
-        blink_stats = blink_detection_precision_recall(gt, pr2)
+        blink_stats = blink_detection_precision_recall(gt, pr_final)
 
         out_timeline = OUT_DIR / f"{video_path.stem}_timeline_GT_Pred_Perf.png"
-        plot_video_timeline_3rows(video_path.name, fps, gt, pr2, out_timeline)
+        plot_video_timeline_3rows(video_path.name, fps, gt, pr_final, out_timeline)
 
-        out_cm_counts = OUT_DIR / f"{video_path.stem}_confusion_counts_log.png"
-        out_cm_norm   = OUT_DIR / f"{video_path.stem}_confusion_row_norm.png"
-
+        out_cm_norm = OUT_DIR / f"{video_path.stem}_confusion_row_norm.png"
         plot_confusion_matrix_3x3(
             cm3,
-            out_path_counts=out_cm_counts,
             out_path_norm=out_cm_norm,
             title_base=f"{video_path.name}",
         )
@@ -501,6 +616,7 @@ def main():
                 "model_iou": IOU_FOR_MODEL_NMS,
                 "imgsz": IMG_SIZE,
                 "max_boxes_per_frame": MAX_BOXES_PER_FRAME,
+                "pad_frames_pred_only": int(PADDIG_BEFORE_AFTER_BLINK_FRAMES),
                 "promote_connected_preds": PROMOTE_CONNECTED_PREDS,
                 "connected_gap_frames": CONNECTED_GAP_FRAMES,
                 "yolo_half_cls": YOLO_HALF_CLS,
@@ -511,9 +627,7 @@ def main():
             "per_class_precision_recall": pr_stats,
             "blink_detection_precision_recall": blink_stats,
             "timeline_png": str(out_timeline),
-            "confusion_counts_png": str(out_cm_counts),
             "confusion_row_norm_png": str(out_cm_norm),
-
         }
 
         print(f"[done] {video_path.name}")
@@ -523,6 +637,7 @@ def main():
     out_json = OUT_DIR / "summary_metrics.json"
     out_json.write_text(json.dumps(summary, indent=2), encoding="utf-8")
     print(f"\n[saved] {out_json}")
+
 
 if __name__ == "__main__":
     main()

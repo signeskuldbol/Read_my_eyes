@@ -23,7 +23,7 @@ Controls:
 
 # ---------------- CONFIG ----------------
 WORKSPACE_ROOT = Path(__file__).parent.parent.parent.resolve()
-JSON_IN_DIR  = WORKSPACE_ROOT / "yolo_approach" / "yolo_labeling" / "yolo_labels_first_priority"      #"labels_yolo_predicted"
+JSON_IN_DIR  = WORKSPACE_ROOT / "yolo_approach" / "yolo_labeling" / "labels_yolo_predicted" / "yolo_labels_first_priority"      #"labels_yolo_predicted"
 JSON_OUT_DIR = WORKSPACE_ROOT / "yolo_approach" / "yolo_labeling" / "labels_extra_blink_only_2"
 JSON_OUT_DIR.mkdir(parents=True, exist_ok=True)
 
