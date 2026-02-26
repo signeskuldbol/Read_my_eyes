@@ -158,9 +158,9 @@ if __name__ == "__main__":
     INFO_VIDEOS_DIR = WORKSPACE_ROOT / "create_datasets" / "original_videos_annotations"
     videos_dir = INFO_VIDEOS_DIR / "videos"
     Workspace_Path = Path(__file__).parent.parent.parent.resolve()
-    model_path = Workspace_Path / "yolo_models" / "v2_eyes_halved" / "weights" / "best_v2_not_finished_E_129.pt"
+    model_path = Workspace_Path / "yolo_models" / "v2_eyes_halved_try_2" / "weights" / "last.pt"
 
-    out_dir = WORKSPACE_ROOT / "yolo_approach" / "pred_videos_v2"
+    out_dir = WORKSPACE_ROOT / "yolo_approach" / "pred_videos_v2_last_pt"
 
     run_folder(
         model_path=model_path,

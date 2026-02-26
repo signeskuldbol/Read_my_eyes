@@ -149,14 +149,14 @@ SHOW = False
 # =========================
 # THRESHOLD OPTIONS
 # =========================
-THR_MODE = "iqr"          # "iqr" | "range_pct" | "baseline_plus"
+THR_MODE = "range_pct"          # "iqr" | "range_pct" | "baseline_plus"
 
 # --- mode: iqr --- use baseline + spread * k
 K_IQR = 2.8               # higher -> fewer detections
 MIN_IQR = 1e-6
 
 # --- mode: range_pct --- use range 
-RANGE_PCT = 0.45         # 0.50 => halfway between min and max
+RANGE_PCT = 0.50         # 0.50 => halfway between min and max
 
 # --- mode: baseline_plus ---
 BASELINE_ADD = 0.80       # thr = median + this constant
@@ -175,10 +175,9 @@ Workspace_Path = Path(__file__).parent.parent.parent.resolve()
 detection_eye_model_path = (
     Workspace_Path
     / "yolo_models"
-    / "v1_yolo_half_100_epochs"
-    / "y12n_3class_final_all"
+    / "v1_yolo_halved"
     / "weights"
-    / "yolo_best_half_E_100.pt"
+    / "best_v1.pt"
 )
 GT_annotations_dir = (
     Workspace_Path
@@ -1071,18 +1070,14 @@ def main():
                 "det_conf": DET_CONF,
                 "det_iou": DET_IOU,
                 "use_vertical_flow": USE_VERTICAL_FLOW,
-                "thr_mode": f"median+{K_IQR}*IQR",
+                "thr_mode": f"{THR_MODE}",
                 "thr_value": float(thr_video),
                 "padding_frames_after": int(PADDING_FRAMES_AFTER),
                 "center_smoothing": CENTER_SMOOTHING,
                 "bbox_smoothing": BBOX_SMOOTHING,
-                "eye_model": str(detection_eye_model_path),
+                "eye_model": str(detection_eye_model_path).name, # only save the name, not full path
             },
             "frame_level_metrics": stats,
-            "timeline_png": str(out_timeline),
-            "cm_2x2_png": str(out_cm),
-            "annotated_video": str(out_video),
-            "magnitude_plot_png": str(out_mag_plot),
         }
 
         all_gt_frames.append(gt2)

@@ -25,44 +25,42 @@ Model rules:
 """
 
 # ---------------- CONFIG ----------------
-WORKSPACE_ROOT = Path(__file__).parent.parent.resolve()
-
-INFO_VIDEOS_DIR = WORKSPACE_ROOT / "create_datasets" / "original_videos_annotations"
-ANNOTATIONS_JSON = INFO_VIDEOS_DIR / "JSONAnnotations" / "annotations.json"
-VIDEOS_DIR = INFO_VIDEOS_DIR / "videos"
-
-OUT_DIR = WORKSPACE_ROOT / "yolo_approach" / "visualisation_videos_eval_v2"
-OUT_DIR.mkdir(parents=True, exist_ok=True)
-
-# --- EDIT THIS ---
-WEIGHTS = WORKSPACE_ROOT.parent.resolve() / "yolo_models" / "v2_eyes_halved" / "weights" / "best_v2_not_finished_E_129.pt"
-
 # YOLO infer settings
 CONF_THRES = 0.25
 IOU_FOR_MODEL_NMS = 0.1
-IMG_SIZE = 896
+IMG_SIZE = 1120  # 896 resulution used for training.
 
-# Never allow more than this many boxes per frame after all filtering
+# Never allow more than this many boxes per frame after all filtering is done. As a horse only has two eyes.
 MAX_BOXES_PER_FRAME = 2
 
 # PADDING IN FRAMES (NOT seconds)
-PADDIG_BEFORE_AFTER_BLINK_FRAMES = 3  # frames to expand predicted blink episodes on each side
+PADDIG_BEFORE_BLINK_FRAMES = 2  # frames added BEFORE the start of a predicted blink episode
+PADDIG_AFTER_BLINK_FRAMES = 3   # frames added AFTER the end of a predicted blink episode
 
 # Toggle: apply "connected episode FULL dominates" to PREDICTIONS only
 PROMOTE_CONNECTED_PREDS = True  # all labels become the same in an episode, with full dominating.
-CONNECTED_GAP_FRAMES = 0 # rule for when to connect episodes
+CONNECTED_GAP_FRAMES = 0 # rule for when to connect episodes. no gab allowed.
 
-# --- EDIT THESE TO MATCH YOUR YOLO CLASSES ---
+# --- YOLO CLASSES ---
 YOLO_HALF_CLS = 1
 YOLO_FULL_CLS = 2
-
-SHOW = False
 
 # ---------------- Label encoding ----------------
 LBL_NONE = 0
 LBL_HALF = 1
 LBL_FULL = 2
 
+#  ---------------- PATHS ----------------
+WORKSPACE_ROOT = Path(__file__).parent.parent.resolve()
+
+INFO_VIDEOS_DIR = WORKSPACE_ROOT / "create_datasets" / "original_videos_annotations"
+ANNOTATIONS_JSON = INFO_VIDEOS_DIR / "JSONAnnotations" / "annotations.json"
+VIDEOS_DIR = INFO_VIDEOS_DIR / "videos"
+
+OUT_DIR = WORKSPACE_ROOT / "yolo_approach" / f"visualisation_Ep_20_pad_{PADDIG_BEFORE_BLINK_FRAMES}_{PADDIG_AFTER_BLINK_FRAMES}_res_{IMG_SIZE}"
+OUT_DIR.mkdir(parents=True, exist_ok=True)
+
+WEIGHTS = WORKSPACE_ROOT.parent.resolve() / "Read_my_eyes" / "yolo_approach" / "blink_detector_Ep20.pt"
 
 # ---------------- HELPERS: time + GT parsing ----------------
 def time_to_seconds(t: str) -> float:
@@ -152,7 +150,8 @@ def pad_pred_only_into_none_conflict_by_episode_mean(
     pr: np.ndarray,
     conf_half: np.ndarray,
     conf_full: np.ndarray,
-    pad_frames: int
+    pad_frames_start: int,
+    pad_frames_end: int
 ) -> np.ndarray:
     """
     PRED-ONLY padding:
@@ -182,8 +181,8 @@ def pad_pred_only_into_none_conflict_by_episode_mean(
         if e <= s:
             continue
         mc = float(np.mean(conf_half[s:e])) if np.any(conf_half[s:e] > 0) else 0.0
-        s2 = max(0, s - pad_frames)
-        e2 = min(n, e + pad_frames)
+        s2 = max(0, s - pad_frames_start)
+        e2 = min(n, e + pad_frames_end)
         best_half_score[s2:e2] = np.maximum(best_half_score[s2:e2], mc)
 
     # FULL proposals
@@ -191,8 +190,8 @@ def pad_pred_only_into_none_conflict_by_episode_mean(
         if e <= s:
             continue
         mc = float(np.mean(conf_full[s:e])) if np.any(conf_full[s:e] > 0) else 0.0
-        s2 = max(0, s - pad_frames)
-        e2 = min(n, e + pad_frames)
+        s2 = max(0, s - pad_frames_start)
+        e2 = min(n, e + pad_frames_end)
         best_full_score[s2:e2] = np.maximum(best_full_score[s2:e2], mc)
 
     want_half = none_mask & (best_half_score >= 0)
@@ -373,37 +372,48 @@ def compute_confusion_3x3(gt: np.ndarray, pr: np.ndarray) -> np.ndarray:
         cm[int(g), int(p)] += 1
     return cm
 
+def macro_avg(metrics_by_class: Dict[str, Dict[str, float]], class_names: List[str]) -> Dict[str, float]:
+    """Unweighted mean of precision/recall/f1 across given classes."""
+    return {
+        "precision": float(np.mean([metrics_by_class[c]["precision"] for c in class_names])),
+        "recall": float(np.mean([metrics_by_class[c]["recall"] for c in class_names])),
+        "f1": float(np.mean([metrics_by_class[c]["f1"] for c in class_names])),
+    }
 
-def per_class_precision_recall_from_cm(cm: np.ndarray) -> Dict[str, Dict[str, float]]:
+def f1_from_pr(precision: float, recall: float) -> float:
+    return safe_div(2 * precision * recall, precision + recall)
+
+def per_class_precision_recall_f1_from_cm(cm: np.ndarray) -> Dict[str, Dict[str, float]]:
     labels = ["none", "half", "full"]
     out = {}
-    precisions, recalls = [], []
+
     for c, name in enumerate(labels):
         tp = cm[c, c]
         fp = cm[:, c].sum() - tp
         fn = cm[c, :].sum() - tp
+
         prec = safe_div(tp, tp + fp)
         rec = safe_div(tp, tp + fn)
-        out[name] = {"precision": prec, "recall": rec}
-        precisions.append(prec)
-        recalls.append(rec)
-    out["macro"] = {"precision": float(np.mean(precisions)), "recall": float(np.mean(recalls))}
+        f1 = f1_from_pr(prec, rec)
+
+        out[name] = {"precision": prec, "recall": rec, "f1": f1}
+
+    # NO macro on purpose
     return out
 
+def blink_any_precision_recall_f1(gt: np.ndarray, pr: np.ndarray) -> Dict[str, float]:
+    gt_b = (gt != LBL_NONE)   # HALF or FULL
+    pr_b = (pr != LBL_NONE)   # HALF or FULL
 
-def blink_detection_precision_recall(gt: np.ndarray, pr: np.ndarray) -> Dict[str, float]:
-    gt_b = (gt != LBL_NONE)
-    pr_b = (pr != LBL_NONE)
     tp = int(np.sum(gt_b & pr_b))
     fp = int(np.sum(~gt_b & pr_b))
     fn = int(np.sum(gt_b & ~pr_b))
-    return {
-        "precision": safe_div(tp, tp + fp),
-        "recall": safe_div(tp, tp + fn),
-        "tp": tp,
-        "fp": fp,
-        "fn": fn,
-    }
+
+    prec = safe_div(tp, tp + fp)
+    rec = safe_div(tp, tp + fn)
+    f1 = f1_from_pr(prec, rec)
+
+    return {"precision": prec, "recall": rec, "f1": f1, "tp": tp, "fp": fp, "fn": fn}
 
 
 def plot_confusion_matrix_3x3(
@@ -508,7 +518,7 @@ def plot_video_timeline_3rows(video_name: str, fps: float, gt: np.ndarray, pr: n
     fig, ax = plt.subplots(figsize=(14, 3.0))
     ax.set_title(video_name)
     ax.set_xlabel("Time (s)")
-    ax.set_xlim(0, total_dur)
+    ax.set_xlim(0, total_dur+5)  # add a bit of padding at the end
 
     y_gt, y_pr, y_pf = 2, 1, 0
     h = 0.6
@@ -532,8 +542,6 @@ def plot_video_timeline_3rows(video_name: str, fps: float, gt: np.ndarray, pr: n
 
     fig.tight_layout()
     fig.savefig(out_path, dpi=200)
-    if SHOW:
-        plt.show()
     plt.close(fig)
 
 
@@ -553,11 +561,17 @@ def main():
     model = YOLO(str(WEIGHTS))
     print(f"[INFO] model.names: {getattr(model, 'names', None)}")
     print(f"[INFO] HALF_CLS={YOLO_HALF_CLS}, FULL_CLS={YOLO_FULL_CLS}, MAX_BOXES_PER_FRAME={MAX_BOXES_PER_FRAME}")
-    print(f"[INFO] pad_frames={PADDIG_BEFORE_AFTER_BLINK_FRAMES} (PRED ONLY)")
+    print(f"[INFO] pad_frames_start={PADDIG_BEFORE_BLINK_FRAMES}, pad_frames_end={PADDIG_AFTER_BLINK_FRAMES} (PRED ONLY)")
     print(f"[INFO] Videos dir: {VIDEOS_DIR}")
     print(f"[INFO] Output dir: {OUT_DIR}")
 
     summary = {}
+    # ---- Overall accumulators (across ALL videos) ----
+    overall_cm3 = np.zeros((3, 3), dtype=int)
+
+    overall_blink_tp = 0
+    overall_blink_fp = 0
+    overall_blink_fn = 0
 
     for video_name, events in data.items():
         if not isinstance(events, list):
@@ -588,16 +602,26 @@ def main():
             pr_promoted,
             conf_half,
             conf_full,
-            pad_frames=int(PADDIG_BEFORE_AFTER_BLINK_FRAMES)
+            pad_frames_start=int(PADDIG_BEFORE_BLINK_FRAMES),
+            pad_frames_end=int(PADDIG_AFTER_BLINK_FRAMES)
         )
 
 
         # Metrics + plots use GT unchanged and PRED padded(+promoted)
         cm3 = compute_confusion_3x3(gt, pr_final)
-        pr_stats = per_class_precision_recall_from_cm(cm3)
-        blink_stats = blink_detection_precision_recall(gt, pr_final)
+        pr_stats = per_class_precision_recall_f1_from_cm(cm3)
+        blink_any_stats = blink_any_precision_recall_f1(gt, pr_final)
 
-        out_timeline = OUT_DIR / f"{video_path.stem}_timeline_GT_Pred_Perf.png"
+        # accumulate multiclass confusion
+        overall_cm3 += cm3
+
+        # accumulate blink-any counts
+        overall_blink_tp += blink_any_stats["tp"]
+        overall_blink_fp += blink_any_stats["fp"]
+        overall_blink_fn += blink_any_stats["fn"]
+
+
+        out_timeline = OUT_DIR / f"{video_path.stem}_timeline.png"
         plot_video_timeline_3rows(video_path.name, fps, gt, pr_final, out_timeline)
 
         out_cm_norm = OUT_DIR / f"{video_path.stem}_confusion_row_norm.png"
@@ -616,23 +640,75 @@ def main():
                 "model_iou": IOU_FOR_MODEL_NMS,
                 "imgsz": IMG_SIZE,
                 "max_boxes_per_frame": MAX_BOXES_PER_FRAME,
-                "pad_frames_pred_only": int(PADDIG_BEFORE_AFTER_BLINK_FRAMES),
+                "pad_frames_pred_only_start": int(PADDIG_BEFORE_BLINK_FRAMES),
+                "pad_frames_pred_only_end": int(PADDIG_AFTER_BLINK_FRAMES),
                 "promote_connected_preds": PROMOTE_CONNECTED_PREDS,
                 "connected_gap_frames": CONNECTED_GAP_FRAMES,
                 "yolo_half_cls": YOLO_HALF_CLS,
                 "yolo_full_cls": YOLO_FULL_CLS,
-                "weights": str(WEIGHTS),
+                "weights": Path(WEIGHTS).name, # only keep the name
             },
             "confusion_3x3_rows_GT_cols_Pred": cm3.tolist(),
-            "per_class_precision_recall": pr_stats,
-            "blink_detection_precision_recall": blink_stats,
-            "timeline_png": str(out_timeline),
-            "confusion_row_norm_png": str(out_cm_norm),
+            "per_class_precision_recall_f1": {
+                    "half": pr_stats["half"],
+                    "full": pr_stats["full"],
+                },
+            "blink_any_precision_recall_f1": blink_any_stats,
         }
 
         print(f"[done] {video_path.name}")
-        print(f"       blink P/R: {blink_stats['precision']:.3f} / {blink_stats['recall']:.3f}")
-        print(f"       macro P/R: {pr_stats['macro']['precision']:.3f} / {pr_stats['macro']['recall']:.3f}")
+        print(f"       blink(any) P/R/F1: {blink_any_stats['precision']:.3f} / {blink_any_stats['recall']:.3f} / {blink_any_stats['f1']:.3f}")
+        print(f"       HALF       P/R/F1: {pr_stats['half']['precision']:.3f} / {pr_stats['half']['recall']:.3f} / {pr_stats['half']['f1']:.3f}")
+        print(f"       FULL       P/R/F1: {pr_stats['full']['precision']:.3f} / {pr_stats['full']['recall']:.3f} / {pr_stats['full']['f1']:.3f}")
+
+    # ---- OVERALL BLINK-ANY METRICS ----
+    overall_blink_precision = safe_div(
+        overall_blink_tp,
+        overall_blink_tp + overall_blink_fp
+    )
+    overall_blink_recall = safe_div(
+        overall_blink_tp,
+        overall_blink_tp + overall_blink_fn
+    )
+    overall_blink_f1 = f1_from_pr(
+        overall_blink_precision,
+        overall_blink_recall
+    )
+    # ---- OVERALL HALF / FULL (multiclass) ----
+    overall_pr_stats = per_class_precision_recall_f1_from_cm(overall_cm3)
+    overall_macro_blink = macro_avg(overall_pr_stats, ["half", "full"])
+    overall_macro_all = macro_avg(overall_pr_stats, ["none", "half", "full"])
+
+    # ---- SAVE OVERALL CONFUSION MATRIX IMAGE ----
+    out_cm_norm_overall = OUT_DIR / "_OVERALL_confusion_row_norm.png"
+    plot_confusion_matrix_3x3(
+        overall_cm3,
+        out_path_norm=out_cm_norm_overall,
+        title_base="OVERALL (all videos)",
+    )
+
+
+    print("\n========== OVERALL PERFORMANCE (ALL VIDEOS) ==========")
+    print(f"BLINK(any)  P/R/F1: {overall_blink_precision:.3f} / {overall_blink_recall:.3f} / {overall_blink_f1:.3f}")
+    print(f"HALF        P/R/F1: {overall_pr_stats['half']['precision']:.3f} / {overall_pr_stats['half']['recall']:.3f} / {overall_pr_stats['half']['f1']:.3f}")
+    print(f"FULL        P/R/F1: {overall_pr_stats['full']['precision']:.3f} / {overall_pr_stats['full']['recall']:.3f} / {overall_pr_stats['full']['f1']:.3f}")
+
+    summary["_OVERALL_"] = {
+        "blink_any_precision_recall_f1": {
+            "precision": overall_blink_precision,
+            "recall": overall_blink_recall,
+            "f1": overall_blink_f1,
+            "tp": overall_blink_tp,
+            "fp": overall_blink_fp,
+            "fn": overall_blink_fn,
+        },
+        "half_precision_recall_f1": overall_pr_stats["half"],
+        "full_precision_recall_f1": overall_pr_stats["full"],
+
+        "macro_precision_recall_f1_blink_only": overall_macro_blink,
+        "macro_precision_recall_f1_all_3_classes": overall_macro_all,
+    }
+
 
     out_json = OUT_DIR / "summary_metrics.json"
     out_json.write_text(json.dumps(summary, indent=2), encoding="utf-8")

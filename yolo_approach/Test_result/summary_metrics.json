@@ -1,0 +1,692 @@
+{
+  "S1_Video.mp4": {
+    "fps": 25.0,
+    "nframes": 760,
+    "duration_s": 30.4,
+    "settings": {
+      "conf_thres": 0.25,
+      "model_iou": 0.1,
+      "imgsz": 1120,
+      "max_boxes_per_frame": 2,
+      "pad_frames_pred_only_start": 2,
+      "pad_frames_pred_only_end": 3,
+      "promote_connected_preds": true,
+      "connected_gap_frames": 0,
+      "yolo_half_cls": 1,
+      "yolo_full_cls": 2,
+      "weights": "blink_detector_Ep20.pt"
+    },
+    "confusion_3x3_rows_GT_cols_Pred": [
+      [
+        706,
+        12,
+        0
+      ],
+      [
+        2,
+        26,
+        0
+      ],
+      [
+        5,
+        9,
+        0
+      ]
+    ],
+    "per_class_precision_recall_f1": {
+      "half": {
+        "precision": 0.5531914893617021,
+        "recall": 0.9285714285714286,
+        "f1": 0.6933333333333335
+      },
+      "full": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0
+      }
+    },
+    "blink_any_precision_recall_f1": {
+      "precision": 0.7446808510638298,
+      "recall": 0.8333333333333334,
+      "f1": 0.7865168539325842,
+      "tp": 35,
+      "fp": 12,
+      "fn": 7
+    }
+  },
+  "S2_Video.mp4": {
+    "fps": 25.0,
+    "nframes": 759,
+    "duration_s": 30.36,
+    "settings": {
+      "conf_thres": 0.25,
+      "model_iou": 0.1,
+      "imgsz": 1120,
+      "max_boxes_per_frame": 2,
+      "pad_frames_pred_only_start": 2,
+      "pad_frames_pred_only_end": 3,
+      "promote_connected_preds": true,
+      "connected_gap_frames": 0,
+      "yolo_half_cls": 1,
+      "yolo_full_cls": 2,
+      "weights": "blink_detector_Ep20.pt"
+    },
+    "confusion_3x3_rows_GT_cols_Pred": [
+      [
+        656,
+        3,
+        13
+      ],
+      [
+        3,
+        18,
+        0
+      ],
+      [
+        6,
+        0,
+        60
+      ]
+    ],
+    "per_class_precision_recall_f1": {
+      "half": {
+        "precision": 0.8571428571428571,
+        "recall": 0.8571428571428571,
+        "f1": 0.8571428571428571
+      },
+      "full": {
+        "precision": 0.821917808219178,
+        "recall": 0.9090909090909091,
+        "f1": 0.8633093525179857
+      }
+    },
+    "blink_any_precision_recall_f1": {
+      "precision": 0.8297872340425532,
+      "recall": 0.896551724137931,
+      "f1": 0.861878453038674,
+      "tp": 78,
+      "fp": 16,
+      "fn": 9
+    }
+  },
+  "S3_Video.mp4": {
+    "fps": 25.0,
+    "nframes": 754,
+    "duration_s": 30.16,
+    "settings": {
+      "conf_thres": 0.25,
+      "model_iou": 0.1,
+      "imgsz": 1120,
+      "max_boxes_per_frame": 2,
+      "pad_frames_pred_only_start": 2,
+      "pad_frames_pred_only_end": 3,
+      "promote_connected_preds": true,
+      "connected_gap_frames": 0,
+      "yolo_half_cls": 1,
+      "yolo_full_cls": 2,
+      "weights": "blink_detector_Ep20.pt"
+    },
+    "confusion_3x3_rows_GT_cols_Pred": [
+      [
+        653,
+        7,
+        2
+      ],
+      [
+        16,
+        17,
+        8
+      ],
+      [
+        11,
+        0,
+        40
+      ]
+    ],
+    "per_class_precision_recall_f1": {
+      "half": {
+        "precision": 0.7083333333333334,
+        "recall": 0.4146341463414634,
+        "f1": 0.523076923076923
+      },
+      "full": {
+        "precision": 0.8,
+        "recall": 0.7843137254901961,
+        "f1": 0.792079207920792
+      }
+    },
+    "blink_any_precision_recall_f1": {
+      "precision": 0.8783783783783784,
+      "recall": 0.7065217391304348,
+      "f1": 0.7831325301204821,
+      "tp": 65,
+      "fp": 9,
+      "fn": 27
+    }
+  },
+  "S4_Video.mp4": {
+    "fps": 25.0,
+    "nframes": 753,
+    "duration_s": 30.12,
+    "settings": {
+      "conf_thres": 0.25,
+      "model_iou": 0.1,
+      "imgsz": 1120,
+      "max_boxes_per_frame": 2,
+      "pad_frames_pred_only_start": 2,
+      "pad_frames_pred_only_end": 3,
+      "promote_connected_preds": true,
+      "connected_gap_frames": 0,
+      "yolo_half_cls": 1,
+      "yolo_full_cls": 2,
+      "weights": "blink_detector_Ep20.pt"
+    },
+    "confusion_3x3_rows_GT_cols_Pred": [
+      [
+        552,
+        17,
+        9
+      ],
+      [
+        37,
+        85,
+        10
+      ],
+      [
+        20,
+        6,
+        17
+      ]
+    ],
+    "per_class_precision_recall_f1": {
+      "half": {
+        "precision": 0.7870370370370371,
+        "recall": 0.6439393939393939,
+        "f1": 0.7083333333333334
+      },
+      "full": {
+        "precision": 0.4722222222222222,
+        "recall": 0.3953488372093023,
+        "f1": 0.43037974683544306
+      }
+    },
+    "blink_any_precision_recall_f1": {
+      "precision": 0.8194444444444444,
+      "recall": 0.6742857142857143,
+      "f1": 0.7398119122257054,
+      "tp": 118,
+      "fp": 26,
+      "fn": 57
+    }
+  },
+  "S5_Video.mp4": {
+    "fps": 25.0,
+    "nframes": 753,
+    "duration_s": 30.12,
+    "settings": {
+      "conf_thres": 0.25,
+      "model_iou": 0.1,
+      "imgsz": 1120,
+      "max_boxes_per_frame": 2,
+      "pad_frames_pred_only_start": 2,
+      "pad_frames_pred_only_end": 3,
+      "promote_connected_preds": true,
+      "connected_gap_frames": 0,
+      "yolo_half_cls": 1,
+      "yolo_full_cls": 2,
+      "weights": "blink_detector_Ep20.pt"
+    },
+    "confusion_3x3_rows_GT_cols_Pred": [
+      [
+        589,
+        6,
+        0
+      ],
+      [
+        20,
+        48,
+        0
+      ],
+      [
+        19,
+        0,
+        71
+      ]
+    ],
+    "per_class_precision_recall_f1": {
+      "half": {
+        "precision": 0.8888888888888888,
+        "recall": 0.7058823529411765,
+        "f1": 0.7868852459016393
+      },
+      "full": {
+        "precision": 1.0,
+        "recall": 0.7888888888888889,
+        "f1": 0.8819875776397516
+      }
+    },
+    "blink_any_precision_recall_f1": {
+      "precision": 0.952,
+      "recall": 0.7531645569620253,
+      "f1": 0.8409893992932862,
+      "tp": 119,
+      "fp": 6,
+      "fn": 39
+    }
+  },
+  "S6_Video.mp4": {
+    "fps": 25.0,
+    "nframes": 746,
+    "duration_s": 29.84,
+    "settings": {
+      "conf_thres": 0.25,
+      "model_iou": 0.1,
+      "imgsz": 1120,
+      "max_boxes_per_frame": 2,
+      "pad_frames_pred_only_start": 2,
+      "pad_frames_pred_only_end": 3,
+      "promote_connected_preds": true,
+      "connected_gap_frames": 0,
+      "yolo_half_cls": 1,
+      "yolo_full_cls": 2,
+      "weights": "blink_detector_Ep20.pt"
+    },
+    "confusion_3x3_rows_GT_cols_Pred": [
+      [
+        697,
+        1,
+        0
+      ],
+      [
+        6,
+        12,
+        0
+      ],
+      [
+        4,
+        18,
+        8
+      ]
+    ],
+    "per_class_precision_recall_f1": {
+      "half": {
+        "precision": 0.3870967741935484,
+        "recall": 0.6666666666666666,
+        "f1": 0.4897959183673469
+      },
+      "full": {
+        "precision": 1.0,
+        "recall": 0.26666666666666666,
+        "f1": 0.4210526315789474
+      }
+    },
+    "blink_any_precision_recall_f1": {
+      "precision": 0.9743589743589743,
+      "recall": 0.7916666666666666,
+      "f1": 0.8735632183908045,
+      "tp": 38,
+      "fp": 1,
+      "fn": 10
+    }
+  },
+  "S7_Video.mp4": {
+    "fps": 25.0,
+    "nframes": 735,
+    "duration_s": 29.4,
+    "settings": {
+      "conf_thres": 0.25,
+      "model_iou": 0.1,
+      "imgsz": 1120,
+      "max_boxes_per_frame": 2,
+      "pad_frames_pred_only_start": 2,
+      "pad_frames_pred_only_end": 3,
+      "promote_connected_preds": true,
+      "connected_gap_frames": 0,
+      "yolo_half_cls": 1,
+      "yolo_full_cls": 2,
+      "weights": "blink_detector_Ep20.pt"
+    },
+    "confusion_3x3_rows_GT_cols_Pred": [
+      [
+        682,
+        0,
+        1
+      ],
+      [
+        2,
+        9,
+        0
+      ],
+      [
+        6,
+        0,
+        35
+      ]
+    ],
+    "per_class_precision_recall_f1": {
+      "half": {
+        "precision": 1.0,
+        "recall": 0.8181818181818182,
+        "f1": 0.9
+      },
+      "full": {
+        "precision": 0.9722222222222222,
+        "recall": 0.8536585365853658,
+        "f1": 0.9090909090909091
+      }
+    },
+    "blink_any_precision_recall_f1": {
+      "precision": 0.9777777777777777,
+      "recall": 0.8461538461538461,
+      "f1": 0.9072164948453608,
+      "tp": 44,
+      "fp": 1,
+      "fn": 8
+    }
+  },
+  "S8_Video.mp4": {
+    "fps": 25.0,
+    "nframes": 738,
+    "duration_s": 29.52,
+    "settings": {
+      "conf_thres": 0.25,
+      "model_iou": 0.1,
+      "imgsz": 1120,
+      "max_boxes_per_frame": 2,
+      "pad_frames_pred_only_start": 2,
+      "pad_frames_pred_only_end": 3,
+      "promote_connected_preds": true,
+      "connected_gap_frames": 0,
+      "yolo_half_cls": 1,
+      "yolo_full_cls": 2,
+      "weights": "blink_detector_Ep20.pt"
+    },
+    "confusion_3x3_rows_GT_cols_Pred": [
+      [
+        589,
+        4,
+        4
+      ],
+      [
+        39,
+        42,
+        0
+      ],
+      [
+        4,
+        8,
+        48
+      ]
+    ],
+    "per_class_precision_recall_f1": {
+      "half": {
+        "precision": 0.7777777777777778,
+        "recall": 0.5185185185185185,
+        "f1": 0.6222222222222222
+      },
+      "full": {
+        "precision": 0.9230769230769231,
+        "recall": 0.8,
+        "f1": 0.8571428571428571
+      }
+    },
+    "blink_any_precision_recall_f1": {
+      "precision": 0.9245283018867925,
+      "recall": 0.6950354609929078,
+      "f1": 0.7935222672064779,
+      "tp": 98,
+      "fp": 8,
+      "fn": 43
+    }
+  },
+  "S9_Video.mp4": {
+    "fps": 25.0,
+    "nframes": 747,
+    "duration_s": 29.88,
+    "settings": {
+      "conf_thres": 0.25,
+      "model_iou": 0.1,
+      "imgsz": 1120,
+      "max_boxes_per_frame": 2,
+      "pad_frames_pred_only_start": 2,
+      "pad_frames_pred_only_end": 3,
+      "promote_connected_preds": true,
+      "connected_gap_frames": 0,
+      "yolo_half_cls": 1,
+      "yolo_full_cls": 2,
+      "weights": "blink_detector_Ep20.pt"
+    },
+    "confusion_3x3_rows_GT_cols_Pred": [
+      [
+        579,
+        30,
+        20
+      ],
+      [
+        0,
+        18,
+        0
+      ],
+      [
+        22,
+        15,
+        63
+      ]
+    ],
+    "per_class_precision_recall_f1": {
+      "half": {
+        "precision": 0.2857142857142857,
+        "recall": 1.0,
+        "f1": 0.4444444444444445
+      },
+      "full": {
+        "precision": 0.7590361445783133,
+        "recall": 0.63,
+        "f1": 0.6885245901639344
+      }
+    },
+    "blink_any_precision_recall_f1": {
+      "precision": 0.6575342465753424,
+      "recall": 0.8135593220338984,
+      "f1": 0.7272727272727273,
+      "tp": 96,
+      "fp": 50,
+      "fn": 22
+    }
+  },
+  "S10_Video.mp4": {
+    "fps": 25.0,
+    "nframes": 750,
+    "duration_s": 30.0,
+    "settings": {
+      "conf_thres": 0.25,
+      "model_iou": 0.1,
+      "imgsz": 1120,
+      "max_boxes_per_frame": 2,
+      "pad_frames_pred_only_start": 2,
+      "pad_frames_pred_only_end": 3,
+      "promote_connected_preds": true,
+      "connected_gap_frames": 0,
+      "yolo_half_cls": 1,
+      "yolo_full_cls": 2,
+      "weights": "blink_detector_Ep20.pt"
+    },
+    "confusion_3x3_rows_GT_cols_Pred": [
+      [
+        587,
+        56,
+        30
+      ],
+      [
+        8,
+        6,
+        0
+      ],
+      [
+        8,
+        0,
+        55
+      ]
+    ],
+    "per_class_precision_recall_f1": {
+      "half": {
+        "precision": 0.0967741935483871,
+        "recall": 0.42857142857142855,
+        "f1": 0.15789473684210525
+      },
+      "full": {
+        "precision": 0.6470588235294118,
+        "recall": 0.873015873015873,
+        "f1": 0.7432432432432433
+      }
+    },
+    "blink_any_precision_recall_f1": {
+      "precision": 0.41496598639455784,
+      "recall": 0.7922077922077922,
+      "f1": 0.5446428571428571,
+      "tp": 61,
+      "fp": 86,
+      "fn": 16
+    }
+  },
+  "S11_Video.mp4": {
+    "fps": 25.0,
+    "nframes": 752,
+    "duration_s": 30.08,
+    "settings": {
+      "conf_thres": 0.25,
+      "model_iou": 0.1,
+      "imgsz": 1120,
+      "max_boxes_per_frame": 2,
+      "pad_frames_pred_only_start": 2,
+      "pad_frames_pred_only_end": 3,
+      "promote_connected_preds": true,
+      "connected_gap_frames": 0,
+      "yolo_half_cls": 1,
+      "yolo_full_cls": 2,
+      "weights": "blink_detector_Ep20.pt"
+    },
+    "confusion_3x3_rows_GT_cols_Pred": [
+      [
+        629,
+        18,
+        0
+      ],
+      [
+        25,
+        32,
+        0
+      ],
+      [
+        3,
+        17,
+        28
+      ]
+    ],
+    "per_class_precision_recall_f1": {
+      "half": {
+        "precision": 0.47761194029850745,
+        "recall": 0.5614035087719298,
+        "f1": 0.5161290322580644
+      },
+      "full": {
+        "precision": 1.0,
+        "recall": 0.5833333333333334,
+        "f1": 0.7368421052631579
+      }
+    },
+    "blink_any_precision_recall_f1": {
+      "precision": 0.8105263157894737,
+      "recall": 0.7333333333333333,
+      "f1": 0.77,
+      "tp": 77,
+      "fp": 18,
+      "fn": 28
+    }
+  },
+  "S12_Video.mp4": {
+    "fps": 25.0,
+    "nframes": 770,
+    "duration_s": 30.8,
+    "settings": {
+      "conf_thres": 0.25,
+      "model_iou": 0.1,
+      "imgsz": 1120,
+      "max_boxes_per_frame": 2,
+      "pad_frames_pred_only_start": 2,
+      "pad_frames_pred_only_end": 3,
+      "promote_connected_preds": true,
+      "connected_gap_frames": 0,
+      "yolo_half_cls": 1,
+      "yolo_full_cls": 2,
+      "weights": "blink_detector_Ep20.pt"
+    },
+    "confusion_3x3_rows_GT_cols_Pred": [
+      [
+        683,
+        0,
+        2
+      ],
+      [
+        22,
+        31,
+        0
+      ],
+      [
+        3,
+        0,
+        29
+      ]
+    ],
+    "per_class_precision_recall_f1": {
+      "half": {
+        "precision": 1.0,
+        "recall": 0.5849056603773585,
+        "f1": 0.738095238095238
+      },
+      "full": {
+        "precision": 0.9354838709677419,
+        "recall": 0.90625,
+        "f1": 0.9206349206349206
+      }
+    },
+    "blink_any_precision_recall_f1": {
+      "precision": 0.967741935483871,
+      "recall": 0.7058823529411765,
+      "f1": 0.8163265306122449,
+      "tp": 60,
+      "fp": 2,
+      "fn": 25
+    }
+  },
+  "_OVERALL_": {
+    "blink_any_precision_recall_f1": {
+      "precision": 0.7909252669039146,
+      "recall": 0.7533898305084745,
+      "f1": 0.7717013888888888,
+      "tp": 889,
+      "fp": 235,
+      "fn": 291
+    },
+    "half_precision_recall_f1": {
+      "precision": 0.6024518388791593,
+      "recall": 0.6346863468634686,
+      "f1": 0.6181491464510332
+    },
+    "full_precision_recall_f1": {
+      "precision": 0.8209764918625678,
+      "recall": 0.7115987460815048,
+      "f1": 0.7623845507976491
+    },
+    "macro_precision_recall_f1_blink_only": {
+      "precision": 0.7117141653708636,
+      "recall": 0.6731425464724867,
+      "f1": 0.6902668486243412
+    },
+    "macro_precision_recall_f1_all_3_classes": {
+      "precision": 0.7955200732524369,
+      "recall": 0.7720997096427101,
+      "f1": 0.78236480308798
+    }
+  }
+}
