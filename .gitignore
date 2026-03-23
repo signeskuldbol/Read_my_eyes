@@ -8,11 +8,12 @@ outputs/
 
 # OPtical FLOW
 **/optical_flow_old_for_videos.py
+outputs_optical_flow_old/
 outputs_optical_flow/
 
 
 # YOLO approach
-test_results/
+Test_result/
 labels_yolo_predicted/ 
 labels_reviewed_2/
 dataset_half_v1/

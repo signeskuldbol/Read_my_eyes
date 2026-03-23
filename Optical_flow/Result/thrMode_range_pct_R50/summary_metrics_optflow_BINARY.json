@@ -1,0 +1,328 @@
+{
+  "S1_Video.mp4": {
+    "fps": 25.0,
+    "nframes_eval": 760,
+    "duration_s": 30.4,
+    "settings": {
+      "det_conf": 0.25,
+      "det_iou": 0.1,
+      "use_vertical_flow": false,
+      "thr_mode": "range_pct",
+      "thr_value": 1.277149388100952,
+      "padding_frames_after": 6,
+      "center_smoothing": 0.75,
+      "bbox_smoothing": 0.5,
+      "eye_model": "C:\\Users\\signe\\Job\\Read_my_eyes\\yolo_approach\\blink_detector_Ep20.pt"
+    },
+    "frame_level_metrics": {
+      "precision": 0.29411764705882354,
+      "recall": 0.35714285714285715,
+      "f1": 0.3225806451612903,
+      "accuracy": 0.9171052631578948,
+      "tp": 15,
+      "fp": 36,
+      "fn": 27,
+      "tn": 682
+    }
+  },
+  "S2_Video.mp4": {
+    "fps": 25.0,
+    "nframes_eval": 759,
+    "duration_s": 30.36,
+    "settings": {
+      "det_conf": 0.25,
+      "det_iou": 0.1,
+      "use_vertical_flow": false,
+      "thr_mode": "range_pct",
+      "thr_value": 2.8775454461574554,
+      "padding_frames_after": 6,
+      "center_smoothing": 0.75,
+      "bbox_smoothing": 0.5,
+      "eye_model": "C:\\Users\\signe\\Job\\Read_my_eyes\\yolo_approach\\blink_detector_Ep20.pt"
+    },
+    "frame_level_metrics": {
+      "precision": 0.6551724137931034,
+      "recall": 0.8735632183908046,
+      "f1": 0.7487684729064039,
+      "accuracy": 0.932806324110672,
+      "tp": 76,
+      "fp": 40,
+      "fn": 11,
+      "tn": 632
+    }
+  },
+  "S3_Video.mp4": {
+    "fps": 25.0,
+    "nframes_eval": 754,
+    "duration_s": 30.16,
+    "settings": {
+      "det_conf": 0.25,
+      "det_iou": 0.1,
+      "use_vertical_flow": false,
+      "thr_mode": "range_pct",
+      "thr_value": 4.441266775131226,
+      "padding_frames_after": 6,
+      "center_smoothing": 0.75,
+      "bbox_smoothing": 0.5,
+      "eye_model": "C:\\Users\\signe\\Job\\Read_my_eyes\\yolo_approach\\blink_detector_Ep20.pt"
+    },
+    "frame_level_metrics": {
+      "precision": 0.5862068965517241,
+      "recall": 0.18478260869565216,
+      "f1": 0.28099173553719003,
+      "accuracy": 0.8846153846153846,
+      "tp": 17,
+      "fp": 12,
+      "fn": 75,
+      "tn": 650
+    }
+  },
+  "S4_Video.mp4": {
+    "fps": 25.0,
+    "nframes_eval": 753,
+    "duration_s": 30.12,
+    "settings": {
+      "det_conf": 0.25,
+      "det_iou": 0.1,
+      "use_vertical_flow": false,
+      "thr_mode": "range_pct",
+      "thr_value": 1.0396261624991894,
+      "padding_frames_after": 6,
+      "center_smoothing": 0.75,
+      "bbox_smoothing": 0.5,
+      "eye_model": "C:\\Users\\signe\\Job\\Read_my_eyes\\yolo_approach\\blink_detector_Ep20.pt"
+    },
+    "frame_level_metrics": {
+      "precision": 0.6195652173913043,
+      "recall": 0.6514285714285715,
+      "f1": 0.6350974930362117,
+      "accuracy": 0.8260292164674635,
+      "tp": 114,
+      "fp": 70,
+      "fn": 61,
+      "tn": 508
+    }
+  },
+  "S5_Video.mp4": {
+    "fps": 25.0,
+    "nframes_eval": 753,
+    "duration_s": 30.12,
+    "settings": {
+      "det_conf": 0.25,
+      "det_iou": 0.1,
+      "use_vertical_flow": false,
+      "thr_mode": "range_pct",
+      "thr_value": 2.10191959887743,
+      "padding_frames_after": 6,
+      "center_smoothing": 0.75,
+      "bbox_smoothing": 0.5,
+      "eye_model": "C:\\Users\\signe\\Job\\Read_my_eyes\\yolo_approach\\blink_detector_Ep20.pt"
+    },
+    "frame_level_metrics": {
+      "precision": 0.8478260869565217,
+      "recall": 0.740506329113924,
+      "f1": 0.7905405405405406,
+      "accuracy": 0.9176626826029216,
+      "tp": 117,
+      "fp": 21,
+      "fn": 41,
+      "tn": 574
+    }
+  },
+  "S6_Video.mp4": {
+    "fps": 25.0,
+    "nframes_eval": 746,
+    "duration_s": 29.84,
+    "settings": {
+      "det_conf": 0.25,
+      "det_iou": 0.1,
+      "use_vertical_flow": false,
+      "thr_mode": "range_pct",
+      "thr_value": 0.9290213361382484,
+      "padding_frames_after": 6,
+      "center_smoothing": 0.75,
+      "bbox_smoothing": 0.5,
+      "eye_model": "C:\\Users\\signe\\Job\\Read_my_eyes\\yolo_approach\\blink_detector_Ep20.pt"
+    },
+    "frame_level_metrics": {
+      "precision": 0.9743589743589743,
+      "recall": 0.7916666666666666,
+      "f1": 0.8735632183908045,
+      "accuracy": 0.985254691689008,
+      "tp": 38,
+      "fp": 1,
+      "fn": 10,
+      "tn": 697
+    }
+  },
+  "S7_Video.mp4": {
+    "fps": 25.0,
+    "nframes_eval": 735,
+    "duration_s": 29.4,
+    "settings": {
+      "det_conf": 0.25,
+      "det_iou": 0.1,
+      "use_vertical_flow": false,
+      "thr_mode": "range_pct",
+      "thr_value": 1.6713668033480644,
+      "padding_frames_after": 6,
+      "center_smoothing": 0.75,
+      "bbox_smoothing": 0.5,
+      "eye_model": "C:\\Users\\signe\\Job\\Read_my_eyes\\yolo_approach\\blink_detector_Ep20.pt"
+    },
+    "frame_level_metrics": {
+      "precision": 0.9038461538461539,
+      "recall": 0.9038461538461539,
+      "f1": 0.9038461538461539,
+      "accuracy": 0.9863945578231292,
+      "tp": 47,
+      "fp": 5,
+      "fn": 5,
+      "tn": 678
+    }
+  },
+  "S8_Video.mp4": {
+    "fps": 25.0,
+    "nframes_eval": 738,
+    "duration_s": 29.52,
+    "settings": {
+      "det_conf": 0.25,
+      "det_iou": 0.1,
+      "use_vertical_flow": false,
+      "thr_mode": "range_pct",
+      "thr_value": 1.0758344735950232,
+      "padding_frames_after": 6,
+      "center_smoothing": 0.75,
+      "bbox_smoothing": 0.5,
+      "eye_model": "C:\\Users\\signe\\Job\\Read_my_eyes\\yolo_approach\\blink_detector_Ep20.pt"
+    },
+    "frame_level_metrics": {
+      "precision": 0.8125,
+      "recall": 0.6453900709219859,
+      "f1": 0.7193675889328063,
+      "accuracy": 0.9037940379403794,
+      "tp": 91,
+      "fp": 21,
+      "fn": 50,
+      "tn": 576
+    }
+  },
+  "S9_Video.mp4": {
+    "fps": 25.0,
+    "nframes_eval": 747,
+    "duration_s": 29.88,
+    "settings": {
+      "det_conf": 0.25,
+      "det_iou": 0.1,
+      "use_vertical_flow": false,
+      "thr_mode": "range_pct",
+      "thr_value": 2.230219803750515,
+      "padding_frames_after": 6,
+      "center_smoothing": 0.75,
+      "bbox_smoothing": 0.5,
+      "eye_model": "C:\\Users\\signe\\Job\\Read_my_eyes\\yolo_approach\\blink_detector_Ep20.pt"
+    },
+    "frame_level_metrics": {
+      "precision": 0.625,
+      "recall": 0.7203389830508474,
+      "f1": 0.6692913385826772,
+      "accuracy": 0.8875502008032129,
+      "tp": 85,
+      "fp": 51,
+      "fn": 33,
+      "tn": 578
+    }
+  },
+  "S10_Video.mp4": {
+    "fps": 25.0,
+    "nframes_eval": 750,
+    "duration_s": 30.0,
+    "settings": {
+      "det_conf": 0.25,
+      "det_iou": 0.1,
+      "use_vertical_flow": false,
+      "thr_mode": "range_pct",
+      "thr_value": 1.882076308131218,
+      "padding_frames_after": 6,
+      "center_smoothing": 0.75,
+      "bbox_smoothing": 0.5,
+      "eye_model": "C:\\Users\\signe\\Job\\Read_my_eyes\\yolo_approach\\blink_detector_Ep20.pt"
+    },
+    "frame_level_metrics": {
+      "precision": 0.8032786885245902,
+      "recall": 0.6363636363636364,
+      "f1": 0.7101449275362318,
+      "accuracy": 0.9466666666666667,
+      "tp": 49,
+      "fp": 12,
+      "fn": 28,
+      "tn": 661
+    }
+  },
+  "S11_Video.mp4": {
+    "fps": 25.0,
+    "nframes_eval": 752,
+    "duration_s": 30.08,
+    "settings": {
+      "det_conf": 0.25,
+      "det_iou": 0.1,
+      "use_vertical_flow": false,
+      "thr_mode": "range_pct",
+      "thr_value": 1.8985450863838196,
+      "padding_frames_after": 6,
+      "center_smoothing": 0.75,
+      "bbox_smoothing": 0.5,
+      "eye_model": "C:\\Users\\signe\\Job\\Read_my_eyes\\yolo_approach\\blink_detector_Ep20.pt"
+    },
+    "frame_level_metrics": {
+      "precision": 0.8068181818181818,
+      "recall": 0.6761904761904762,
+      "f1": 0.7357512953367875,
+      "accuracy": 0.9321808510638298,
+      "tp": 71,
+      "fp": 17,
+      "fn": 34,
+      "tn": 630
+    }
+  },
+  "S12_Video.mp4": {
+    "fps": 25.0,
+    "nframes_eval": 770,
+    "duration_s": 30.8,
+    "settings": {
+      "det_conf": 0.25,
+      "det_iou": 0.1,
+      "use_vertical_flow": false,
+      "thr_mode": "range_pct",
+      "thr_value": 2.5497123450040817,
+      "padding_frames_after": 6,
+      "center_smoothing": 0.75,
+      "bbox_smoothing": 0.5,
+      "eye_model": "C:\\Users\\signe\\Job\\Read_my_eyes\\yolo_approach\\blink_detector_Ep20.pt"
+    },
+    "frame_level_metrics": {
+      "precision": 0.972972972972973,
+      "recall": 0.4235294117647059,
+      "f1": 0.5901639344262295,
+      "accuracy": 0.935064935064935,
+      "tp": 36,
+      "fp": 1,
+      "fn": 49,
+      "tn": 684
+    }
+  },
+  "_OVERALL_": {
+    "frame_level_metrics": {
+      "precision": 0.7248322147651006,
+      "recall": 0.6406779661016949,
+      "f1": 0.680161943319838,
+      "accuracy": 0.9211489408894311,
+      "tp": 756,
+      "fp": 287,
+      "fn": 424,
+      "tn": 7550
+    },
+    "cm_2x2_png": "C:\\Users\\signe\\Job\\Read_my_eyes\\Optical_flow\\outputs_optical_flow\\thrMode_range_pct_R50\\confusion_matrices\\ALL_videos_cm_2x2_row_norm.png",
+    "nframes_total": 9017
+  }
+}
