@@ -174,10 +174,9 @@ elif THR_MODE == "baseline_plus":
 Workspace_Path = Path(__file__).parent.parent.parent.resolve()
 detection_eye_model_path = (
     Workspace_Path
-    / "yolo_models"
-    / "v1_yolo_halved"
-    / "weights"
-    / "best_v1.pt"
+    / "Read_my_eyes"
+    / "yolo_approach"
+    / "blink_detector_Ep20.pt"
 )
 GT_annotations_dir = (
     Workspace_Path
@@ -1075,7 +1074,7 @@ def main():
                 "padding_frames_after": int(PADDING_FRAMES_AFTER),
                 "center_smoothing": CENTER_SMOOTHING,
                 "bbox_smoothing": BBOX_SMOOTHING,
-                "eye_model": str(detection_eye_model_path).name, # only save the name, not full path
+                "eye_model": str(detection_eye_model_path),
             },
             "frame_level_metrics": stats,
         }
